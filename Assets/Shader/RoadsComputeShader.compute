@@ -1,0 +1,82 @@
+﻿#pragma kernel CSMain
+
+// 書き出し先のテクスチャ
+RWTexture2D<float4> Result;
+
+// 車線幅
+float laneWidth;
+
+// 道の構造体
+struct Road
+{
+	float2 pos1;
+	float2 pos2;
+	float2 lanes;
+};
+
+// 道の構造化バッファ
+RWStructuredBuffer<Road> Roads;
+
+// 2Dベクトル外積
+inline float cross2d(float2 a, float2 b) 
+{
+  return a.x * b.y - a.y * b.x;
+}
+
+// 2Dベクトル内積
+inline float dot2d(float2 a, float2 b) 
+{
+  return a.x * b.x + a.y * b.y;
+}
+
+// 道の色を返す
+inline float4 getRoadColor(float distance, float lanes, float length)
+{
+	float r = abs((distance - lanes * laneWidth) * distance);
+	float zebbla = 1 - (step(0.1, r)) * step(0, sin(length / laneWidth));
+	float edges = 1 - step(0.01, fmod(distance, laneWidth));
+	return lerp(float4(0.1,0.1,0.1,1), float4(1,1,1,1), zebbla * edges);
+}
+
+// 8 * 8のスレッドで回す
+[numthreads(8, 8, 1)]
+void CSMain (uint3 dtid  : SV_DispatchThreadID)
+{
+	float4 color = float4(0.2,0.4,0.2,1); // 道でない部分の色
+	/*
+	// テクスチャサイズ取得
+	float xs;
+    float ys;
+    Result.GetDimensions(xs,ys);
+	*/
+
+	int count = (int)Roads.Length;
+	for(int i = 0; i < count; i++)
+	{
+		Road r = Roads[i];
+		// 各点を結ぶベクトル
+		float2 ap = dtid.xy - r.pos1;
+		float2 ab = r.pos2 - r.pos1;
+		float2 bp = dtid.xy - r.pos2;
+
+		float length = distance(r.pos1, r.pos2);
+		float distance = cross2d(ap, ab) / length;
+
+		// 距離が負ならlanes.x,正ならlanes.yを使う
+		float lanes = lerp(r.lanes.x, r.lanes.y, step(0, distance));
+
+		float absDist = abs(distance);
+		
+		float dotA = dot2d(ap, ab);
+		float dotB = dot2d(bp, -ab);
+
+		// 最初の dotA は破線のヒントに、 dotA * dotB は線分の内側であることの条件に使う
+		color = lerp(color, getRoadColor(absDist, lanes, dotA), 
+					(1 - step(lanes * laneWidth + 1, absDist))	* step(0, dotA * dotB) 
+				);
+
+	}
+
+	// テクスチャに色を書き込む
+    Result[dtid.xy] = color;
+}
