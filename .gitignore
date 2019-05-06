@@ -9,3 +9,17 @@
 /Library
 /Assembly-CSharp.csproj
 /learnComputeShader.sln
+/Assets/Scenes/Sample01.unity
+/Assets/Scenes/Sample01.unity.meta
+/Assets/Scenes/Sample02.unity
+/Assets/Scenes/Sample02.unity.meta
+/Assets/Scripts/MenyBullets.cs.meta
+/Assets/Scripts/RunComputeShader.cs
+/Assets/Scripts/RunComputeShader.cs.meta
+/Assets/Scripts/MenyBullets.cs
+/Assets/Shader/MenyBullets.shader.meta
+/Assets/Shader/BulletsComputeShader.compute
+/Assets/Shader/BulletsComputeShader.compute.meta
+/Assets/Shader/CirclesComputeShader.compute
+/Assets/Shader/CirclesComputeShader.compute.meta
+/Assets/Shader/MenyBullets.shader
