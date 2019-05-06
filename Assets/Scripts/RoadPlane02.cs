@@ -2,12 +2,13 @@
 using System.Runtime.InteropServices;
 using UnityEngine.Rendering;
 using System.Diagnostics;
+using System.Collections.Generic;
 
 /// <summary>
 /// 道(ブランチ)の構造体
 /// </summary>
 [DebuggerDisplay("Dump()")]
-struct Road
+struct Road02
 {
     /// <summary>
     /// 座標
@@ -23,7 +24,7 @@ struct Road
     /// <summary>
     /// コンストラクタ
     /// </summary>
-    public Road(Vector2 pos1, Vector2 pos2, Vector2 lanes)
+    public Road02(Vector2 pos1, Vector2 pos2, Vector2 lanes)
     {
         this.pos1 = pos1;
         this.pos2 = pos2;
@@ -36,14 +37,29 @@ struct Road
     }
 }
 
+public class EntryPoint
+{
+    /// <summary>
+    /// 座標
+    /// </summary>
+    public readonly Vector2 pos;
+    public readonly Vector2 dir;
+
+    public EntryPoint(Vector2 pos, Vector2 dir)
+    {
+        this.pos = pos;
+        this.dir = dir;
+    }
+}
+
 /// <summary>
 /// 道の集合を管理するクラス
 /// </summary>
 [ExecuteAlways]
-public class RoadPlane : MonoBehaviour
+public class RoadPlane02 : MonoBehaviour
 {
-    private const int MAP_SIZE = 256;
-    private const int LANE_WIDTH = 8;
+    private const int MAP_SIZE = 512;
+    private const int LANE_WIDTH = 10;
 
     /// <summary>
     /// 道をレンダリングするシェーダー
@@ -58,17 +74,23 @@ public class RoadPlane : MonoBehaviour
     /// <summary>
     /// 書き込み可能なテクスチャ
     /// </summary>
-    RenderTexture _renderTexture;
+    private RenderTexture _renderTexture;
 
     /// <summary>
     /// 道のマテリアル
     /// </summary>
-    Material _material;
+    private Material _material;
 
     /// <summary>
     /// 道のコンピュートバッファ
     /// </summary>
-    ComputeBuffer roadsBuffer;
+    private ComputeBuffer roadsBuffer;
+
+    /// <summary>
+    /// 道路の侵入可能点
+    /// </summary>
+    private List<EntryPoint> entryPoints;
+    public IList<EntryPoint> EntryPoints { get { return entryPoints; } }
 
     private bool renderd;
 
@@ -76,7 +98,7 @@ public class RoadPlane : MonoBehaviour
     /// <summary>
     /// 破棄
     /// </summary>
-    void OnDisable()
+    private void OnDisable()
     {
         // コンピュートバッファは明示的に破棄しないと怒られます
         if (roadsBuffer != null)
@@ -90,9 +112,10 @@ public class RoadPlane : MonoBehaviour
     /// <summary>
     /// 初期化
     /// </summary>
-    void Start()
+    private void Start()
     {
-        InitializeComputeBuffer();
+        Road02[] roads = InitializeComputeBuffer();
+        InitializeEntryPoints(roads);
         renderd = false;
     }
 
@@ -101,7 +124,7 @@ public class RoadPlane : MonoBehaviour
     /// <summary>
     /// 更新処理
     /// </summary>
-    void Update()
+    private void Update()
     {
         if (renderd) return;
         roadsComputeShader.SetBuffer(0, "Roads", roadsBuffer);
@@ -114,18 +137,18 @@ public class RoadPlane : MonoBehaviour
     /// <summary>
     /// コンピュートバッファの初期化
     /// </summary>
-    void InitializeComputeBuffer()
+    private Road02[] InitializeComputeBuffer()
     {
         var count = 3;
-        roadsBuffer = new ComputeBuffer(count, Marshal.SizeOf(typeof(Road)));
+        roadsBuffer = new ComputeBuffer(count, Marshal.SizeOf(typeof(Road02)));
 
         // 配列に初期値を代入する
-        Road[] roads = new Road[count];
+        Road02[] roads = new Road02[count];
         var step = MAP_SIZE / (count+1);
         var x = step;
         for (int i = 0; i < count; i++)
         {
-            roads[i] = new Road(new Vector2(x, 0.1f * MAP_SIZE) , new Vector2(x, 0.9f * MAP_SIZE), new Vector2(3,3));
+            roads[i] = new Road02(new Vector2(x, 0.0f * MAP_SIZE) , new Vector2(x, 1.0f * MAP_SIZE), new Vector2(2,2));
             x += step;
         }
 
@@ -141,7 +164,49 @@ public class RoadPlane : MonoBehaviour
         _material = new Material(roadShader);
         _material = ren.material;
         _material.mainTexture = _renderTexture;
+
+        return roads;
     }
 
+    private Vector2 ToWorldPos(Vector2 local)
+    {
+        // Planeのmeshサイズは10なので、なんで20なのかよくわからないけど、ぴったり合う
+        var scale = 20f * transform.localScale.x / MAP_SIZE;
+        // Plane が(0,0)に配置されてる前提だと、座標の起点は -MAP_SIZE/2 にある
+        var half = MAP_SIZE / 2;
+        return new Vector2((local.x - half) * scale, (local.y - half) * scale);
+    }
 
+    private void InitializeEntryPoints(Road02[] roads)
+    {
+        entryPoints = new List<EntryPoint>();
+        foreach(Road02 road in roads)
+        {
+            var dir = (road.pos2 - road.pos1).normalized;
+            var cross = new Vector2(-dir.y, dir.x); // dirと直交するベクトル
+            var offset = cross * LANE_WIDTH / 2;
+            var step = cross * LANE_WIDTH;
+            // 上りレーン
+            for(int i = 0; i< road.lanes.x; i++)
+            {
+                entryPoints.Add(new EntryPoint(ToWorldPos(road.pos1 + offset), dir));
+                offset += step;
+            }
+            cross *= -1;
+            dir *= -1;
+            offset = cross * LANE_WIDTH / 2;
+            step = cross * LANE_WIDTH;
+            // 下りレーン
+            for (int i = 0; i < road.lanes.y; i++)
+            {
+                entryPoints.Add(new EntryPoint(ToWorldPos(road.pos2 + offset), dir));
+                offset += step;
+            }
+        }
+
+        foreach(EntryPoint ep in entryPoints)
+        {
+            UnityEngine.Debug.Log(string.Format("EntryPos:({0},{1})", ep.pos.x, ep.pos.y));
+        }
+    }
 }

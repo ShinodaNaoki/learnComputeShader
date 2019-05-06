@@ -32,10 +32,11 @@ inline float dot2d(float2 a, float2 b)
 // 道の色を返す
 inline float4 getRoadColor(float distance, float lanes, float length)
 {
-	float r = abs((distance - lanes * laneWidth) * distance);
-	float zebbla = 1 - (step(0.1, r)) * step(0, sin(length / laneWidth));
-	float edges = 1 - step(0.01, fmod(distance, laneWidth));
-	return lerp(float4(0.1,0.1,0.1,1), float4(1,1,1,1), zebbla * edges);
+	float zebbla = step(0, sin(length * 2 / laneWidth));
+	float edges = smoothstep(0.9, 1.0, abs(distance - lanes * laneWidth)) * smoothstep(0.9, 1.0, distance);
+	float mask = 1 - edges * zebbla;
+	float lines = 1 - smoothstep(0.9, 1.0, fmod(distance, laneWidth));
+	return lerp(float4(0.1,0.1,0.1,1), float4(1,1,1,1), lines * mask);
 }
 
 // 8 * 8のスレッドで回す
@@ -67,14 +68,13 @@ void CSMain (uint3 dtid  : SV_DispatchThreadID)
 
 		float absDist = abs(distance);
 		
-		float dotA = dot2d(ap, ab);
+		float dotA = dot2d(ap, normalize(ab));
 		float dotB = dot2d(bp, -ab);
 
 		// 最初の dotA は破線のヒントに、 dotA * dotB は線分の内側であることの条件に使う
 		color = lerp(color, getRoadColor(absDist, lanes, dotA), 
 					(1 - step(lanes * laneWidth + 1, absDist))	* step(0, dotA * dotB) 
 				);
-
 	}
 
 	// テクスチャに色を書き込む
