@@ -55,7 +55,6 @@ public class EntryPoint
 /// <summary>
 /// 道の集合を管理するクラス
 /// </summary>
-[ExecuteAlways]
 public class RoadPlane02 : MonoBehaviour
 {
     private const int MAP_SIZE = 512;

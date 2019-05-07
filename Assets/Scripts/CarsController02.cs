@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Runtime.InteropServices;
+using UnityEngine.UI;
 
 /// <summary>
 /// 車の構造体
@@ -40,6 +41,11 @@ public class CarsController02 : MonoBehaviour
     public ComputeShader carComputeShader;
 
     /// <summary>
+    /// 情報表示用
+    /// </summary>
+    public Text statusText;
+
+    /// <summary>
     /// 車のマテリアル
     /// </summary>
     Material material;
@@ -64,7 +70,7 @@ public class CarsController02 : MonoBehaviour
     void Start()
     {
         material = new Material(carShader);
-        InitializeComputeBuffer();
+        InitializeComputeBuffer();        
     }
 
     /// <summary>
@@ -110,5 +116,14 @@ public class CarsController02 : MonoBehaviour
         material.SetPass(0);    
         // オブジェクトをレンダリング
         Graphics.DrawProcedural(MeshTopology.Points, factory.ActiveCars);
+    }
+
+    /// <summary>
+    /// StatusTextへの表示用
+    /// </summary>
+    /// <returns></returns>
+    public override string ToString()
+    {
+        return factory.ActiveCars.ToString() + " Cars";
     }
 }
