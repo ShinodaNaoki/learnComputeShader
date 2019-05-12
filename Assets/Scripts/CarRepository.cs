@@ -87,7 +87,7 @@ public class CarRepository<T> where T: struct, IDriveInfo
             {CarType.Senior, new CarTemplate(1.5f, 1, 2.5f, new Color(0.1f,0.8f,0.1f), 1.0f, 40) },
             {CarType.Sports, new CarTemplate(2, 0.75f, 4, Color.red, 1.0f, 120) },
             {CarType.Bus,    new CarTemplate(2.4f, 2f, 7f, Color.yellow, 0.85f, 60) },
-            {CarType.TruckM, new CarTemplate(2.4f, 2f, 7f, Color.yellow, 0.85f, 80) },
+            {CarType.TruckM, new CarTemplate(2.4f, 2f, 7f, Color.cyan, 0.85f, 80) },
             {CarType.TruckL, new CarTemplate(2.5f, 2f, 9, new Color(0.1f,0.1f,1), 0.7f, 100) },
         };
     }

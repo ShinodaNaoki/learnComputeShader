@@ -6,6 +6,9 @@ RWTexture2D<float4> Result;
 // 車線幅
 float laneWidth;
 
+//データ数
+int length;
+
 // 道の構造体
 struct Road
 {
@@ -51,7 +54,8 @@ void CSMain (uint3 dtid  : SV_DispatchThreadID)
     Result.GetDimensions(xs,ys);
 	*/
 
-	int count = (int)Roads.Length;
+	//int count = (int)Roads.Length; // MacのMetalモードではLengthプロパティが使えない
+	int count = length;
 	for(int i = 0; i < count; i++)
 	{
 		Road r = Roads[i];

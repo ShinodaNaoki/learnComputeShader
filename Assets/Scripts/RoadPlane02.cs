@@ -129,6 +129,7 @@ public class RoadPlane02 : MonoBehaviour
         roadsComputeShader.SetBuffer(0, "Roads", roadsBuffer);
         roadsComputeShader.SetTexture(0, "Result", _renderTexture);
         roadsComputeShader.SetFloat("laneWidth", LANE_WIDTH);
+        roadsComputeShader.SetInt("length", roadsBuffer.count);
         roadsComputeShader.Dispatch(0, _renderTexture.width / 8, _renderTexture.height / 8, 1);
         renderd = true;
     }
