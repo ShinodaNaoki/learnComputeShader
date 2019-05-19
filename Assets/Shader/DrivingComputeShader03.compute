@@ -1,0 +1,80 @@
+﻿#pragma kernel CSMain
+
+// 車の描画情報
+struct DrawInfo
+{
+	float3 size;
+	float4 col;
+	float2 pos;
+	float2 dir;
+};
+
+// 車の運転情報
+struct DriveInfo
+{
+	float velocity;
+	float iedalVelocity;
+	float mobility;
+};
+
+// 前回の更新からの経過時間
+float DeltaTime;
+
+// 車の構造化バッファ
+RWStructuredBuffer<DrawInfo> DrawInfos;
+
+// 車の構造化バッファ
+RWStructuredBuffer<DriveInfo> DriveInfos;
+
+struct Particle {
+	float3 m_Position;
+	float3 m_Velocity;
+	float3 m_AnimatedVelocity;
+	float3 m_InitialVelocity;
+	float3 m_AxisOfRotation;
+	float3 m_Rotation;
+	float3 m_AngularVelocity;
+	float3 m_StartSize;
+	uint m_StartColor;
+	uint m_RandomSeed;
+	float m_Lifetime;
+	float m_StartLifetime;
+	float m_EmitAccumulator0;
+	float m_EmitAccumulator1;
+	uint m_Flags;
+};
+
+// https://github.com/sugi-cho/Unity-ParticleSystem-GPUUpdate/blob/master/Assets/ParticleSystem-GPU/Shaders/ParticleSystem.Particle.cginc
+uint Particle_ColorToUint(half4 col)
+{
+    uint col32 = ((uint) (col.r * 0xFF))
+        + ((uint) (col.g * 0xFF) << 8)
+        + ((uint) (col.b * 0xFF) << 16)
+        + ((uint) (col.a * 0xFF) << 24);
+    return col32;
+}
+
+// 出力先のパーティクルバッファ
+RWStructuredBuffer<Particle> Particles;
+
+
+// Particle構造体へコピー
+inline void PrepareParticle(in DrawInfo draw, in DriveInfo drive, inout Particle p)
+{
+    p.m_Position = half3(draw.pos.x, 0.1, draw.pos.y) * 0.5;
+	p.m_StartSize = draw.size;
+	p.m_StartColor = Particle_ColorToUint(draw.col);	
+	const float radian90 = 3.14159 / 2;
+	p.m_Rotation = half3(1, 1 - draw.dir.y, draw.dir.x) * radian90; // 角度単位がC#と違う
+	p.m_StartLifetime = 1;
+	p.m_Lifetime = 1;
+}
+
+// (8, 1, 1)のスレッドで回す
+[numthreads(8,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+	// それぞれの位置情報に移動ベクトルを加算　(0.28はkm/hをm/sに変換する係数)
+    DrawInfos[id.x].pos += DrawInfos[id.x].dir * DriveInfos[id.x].velocity * DeltaTime * 0.28;
+	PrepareParticle(DrawInfos[id.x], DriveInfos[id.x], Particles[id.x]);
+}

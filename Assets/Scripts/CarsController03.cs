@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Runtime.InteropServices;
+using System;
 
 /// <summary>
 /// 車の構造体
@@ -27,7 +28,7 @@ internal struct Car03 : IDriveInfo
 /// </summary>
 public class CarsController03 : MonoBehaviour
 {
-    const int MAX_CARS = 100;
+    const int MAX_CARS = 10000;
 
     /// <summary>
     /// 車をレンダリングするシェーダー
@@ -47,6 +48,13 @@ public class CarsController03 : MonoBehaviour
     private ParticleSystem.Particle[] particles;
 
     /// <summary>
+    /// パーティクルをGPU側で設定するか
+    /// </summary>
+    public bool setParticlesOnGPU;
+
+    private ComputeBuffer particleBuffer;
+
+    /// <summary>
     /// 車ファクトリ
     /// </summary>
     CarRepository<Car03> factory;
@@ -58,6 +66,7 @@ public class CarsController03 : MonoBehaviour
     {
         // コンピュートバッファは明示的に破棄しないと怒られます
         factory.ReleaseBuffers();
+        particleBuffer.Release();
     }
 
     /// <summary>
@@ -74,17 +83,46 @@ public class CarsController03 : MonoBehaviour
     /// </summary>
     void Update()
     {
-        carComputeShader.SetBuffer(0, "DrawInfos", factory.DrawInfoBuffer);
-        carComputeShader.SetBuffer(0, "DriveInfos", factory.DriveInfoBuffer);
-        carComputeShader.SetFloat("DeltaTime", Time.deltaTime);
-        carComputeShader.Dispatch(0, factory.Length / 8 + 1, 1, 1);
-        UpdateParticles();
+        if (setParticlesOnGPU)
+        {
+            carComputeShader.SetBuffer(0, "Particles", particleBuffer);
+
+            carComputeShader.SetBuffer(0, "DrawInfos", factory.DrawInfoBuffer);
+            carComputeShader.SetBuffer(0, "DriveInfos", factory.DriveInfoBuffer);
+            carComputeShader.SetFloat("DeltaTime", Time.deltaTime);
+            carComputeShader.Dispatch(0, factory.Length / 8 + 1, 1, 1);
+            gpu_UpdateParticles();
+        }
+        else
+        {
+            carComputeShader.SetBuffer(0, "DrawInfos", factory.DrawInfoBuffer);
+            carComputeShader.SetBuffer(0, "DriveInfos", factory.DriveInfoBuffer);
+            carComputeShader.SetFloat("DeltaTime", Time.deltaTime);
+            carComputeShader.Dispatch(0, factory.Length / 8 + 1, 1, 1);
+            cpu_UpdateParticles();
+        }
+    }
+
+    /// <summary>
+    /// 計算結果をパーティクルに適用する(GPU版)
+    /// </summary>
+    private void gpu_UpdateParticles()
+    {
+        var cars = factory.GetCars();
+        var emitter = particlesSystem.emission;
+        emitter.rateOverTime = cars.Length;
+        int numParticlesAlive = cars.Length;
+
+        particlesSystem.GetParticles(particles, cars.Length);
+        particleBuffer.GetData(particles, 0, 0, numParticlesAlive);
+
+        particlesSystem.SetParticles(particles, numParticlesAlive);
     }
 
     /// <summary>
     /// 計算結果をパーティクルに適用する
     /// </summary>
-    private void UpdateParticles()
+    private void cpu_UpdateParticles()
     {
         var cars = factory.GetCars();
         var emitter = particlesSystem.emission;
@@ -124,11 +162,16 @@ public class CarsController03 : MonoBehaviour
         // 配列に初期値を代入する
         for (int i = 0; i < MAX_CARS; i++)
         {
-            var entry = entries[ Random.Range(0,entries.Count) ];
+            var entry = entries[ UnityEngine.Random.Range(0,entries.Count) ];
             factory.CreateRandomType(entry.pos, entry.dir);
         }
 
         factory.ApplyData();
+
+        // Particle用バッファの準備
+        particles = new ParticleSystem.Particle[MAX_CARS];
+        particleBuffer = new ComputeBuffer(MAX_CARS, Marshal.SizeOf(typeof(ParticleSystem.Particle)));
+        particleBuffer.SetData(particles);
     }
 
     /// <summary>

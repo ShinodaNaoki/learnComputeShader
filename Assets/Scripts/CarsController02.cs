@@ -28,7 +28,7 @@ internal struct Car02 : IDriveInfo
 /// </summary>
 public class CarsController02 : MonoBehaviour
 {
-    const int MAX_CARS = 100;
+    const int MAX_CARS = 10000;
 
     /// <summary>
     /// 車をレンダリングするシェーダー

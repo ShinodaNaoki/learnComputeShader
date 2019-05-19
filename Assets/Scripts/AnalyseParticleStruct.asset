@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c226f90b1118dd547842d2afba3a4129, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  dumpText: "struct Particle {\r\n\tfloat3 m_Position;\r\n\tfloat3 m_Velocity;\r\n\tfloat3
+    m_AnimatedVelocity;\r\n\tfloat3 m_InitialVelocity;\r\n\tfloat3 m_AxisOfRotation;\r\n\tfloat3
+    m_Rotation;\r\n\tfloat3 m_AngularVelocity;\r\n\tfloat3 m_StartSize;\r\n\tuint
+    m_StartColor;\r\n\tuint m_RandomSeed;\r\n\tfloat m_Lifetime;\r\n\tfloat m_StartLifetime;\r\n\tfloat
+    m_EmitAccumulator0;\r\n\tfloat m_EmitAccumulator1;\r\n\tuint m_Flags;\r\n}"
