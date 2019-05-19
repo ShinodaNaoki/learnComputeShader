@@ -5,22 +5,11 @@ using System;
 /// <summary>
 /// 車の構造体
 /// </summary>
-internal struct Car03 : IDriveInfo
+internal struct Car03 : ICarDynamicInfo
 {
-    /// <summary>
-    /// 速度
-    /// </summary>
     public float velocity { get; set; }
-
-    /// <summary>
-    /// 運転者の理想速度、最大速度に影響
-    /// </summary>
-    public float idealVelocity { get; set; }
-
-    /// <summary>
-    /// 機動性(加減速効率、旋回半径などに影響)
-    /// </summary>
-    public float mobility { get; set; }
+    public Vector2 pos { get; set; }
+    public Vector2 direction { get; set; }
 }
 
 /// <summary>
@@ -57,7 +46,7 @@ public class CarsController03 : MonoBehaviour
     /// <summary>
     /// 車ファクトリ
     /// </summary>
-    CarRepository<Car03> factory;
+    CarRepository<Car02s,Car02> factory;
 
     /// <summary>
     /// 破棄
@@ -87,16 +76,16 @@ public class CarsController03 : MonoBehaviour
         {
             carComputeShader.SetBuffer(0, "Particles", particleBuffer);
 
-            carComputeShader.SetBuffer(0, "DrawInfos", factory.DrawInfoBuffer);
-            carComputeShader.SetBuffer(0, "DriveInfos", factory.DriveInfoBuffer);
+            carComputeShader.SetBuffer(0, "CarsStatic", factory.StaticInfoBuffer);
+            carComputeShader.SetBuffer(0, "CarsDynamic", factory.DynamicInfoBuffer);
             carComputeShader.SetFloat("DeltaTime", Time.deltaTime);
             carComputeShader.Dispatch(0, factory.Length / 8 + 1, 1, 1);
             gpu_UpdateParticles();
         }
         else
         {
-            carComputeShader.SetBuffer(0, "DrawInfos", factory.DrawInfoBuffer);
-            carComputeShader.SetBuffer(0, "DriveInfos", factory.DriveInfoBuffer);
+            carComputeShader.SetBuffer(0, "CarsStatic", factory.StaticInfoBuffer);
+            carComputeShader.SetBuffer(0, "CarsDynamic", factory.DynamicInfoBuffer);
             carComputeShader.SetFloat("DeltaTime", Time.deltaTime);
             carComputeShader.Dispatch(0, factory.Length / 8 + 1, 1, 1);
             cpu_UpdateParticles();
@@ -132,11 +121,11 @@ public class CarsController03 : MonoBehaviour
         foreach (var car in cars)
         {
             var par = particles[i];
-            var pos = car.DrawInfo.pos;
+            var pos = car.Dynamic.pos;
             par.position = new Vector3(pos.x, 0.1f, pos.y) * 0.5f;
-            par.startSize3D = car.DrawInfo.size;
-            par.startColor = car.DrawInfo.color;
-            var dir = car.DrawInfo.direction;
+            par.startSize3D = car.Static.size;
+            par.startColor = car.Static.color;
+            var dir = car.Dynamic.direction;
             par.rotation3D = new Vector3(1, 1 - dir.y, dir.x) * 90;
             particles[i] = par;
             i++;
@@ -153,7 +142,7 @@ public class CarsController03 : MonoBehaviour
     /// </summary>
     void InitializeComputeBuffer()
     {
-        factory = new CarRepository<Car03>(MAX_CARS);
+        factory = new CarRepository<Car02s,Car02>(MAX_CARS, CarTemplate02.dictionary);
         factory.AssignBuffers();
 
         RoadPlane02 roadPlane = GetComponent<RoadPlane02>();

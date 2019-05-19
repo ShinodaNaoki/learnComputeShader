@@ -2,26 +2,6 @@
 using System.Runtime.InteropServices;
 using UnityEngine.UI;
 
-/// <summary>
-/// 車の構造体
-/// </summary>
-internal struct Car02 : IDriveInfo
-{
-    /// <summary>
-    /// 速度
-    /// </summary>
-    public float velocity { get; set; }
-
-    /// <summary>
-    /// 運転者の理想速度、最大速度に影響
-    /// </summary>
-    public float idealVelocity { get; set; }
-
-    /// <summary>
-    /// 機動性(加減速効率、旋回半径などに影響)
-    /// </summary>
-    public float mobility { get; set; }
-}
 
 /// <summary>
 /// 沢山の車を管理するクラス
@@ -53,7 +33,7 @@ public class CarsController02 : MonoBehaviour
     /// <summary>
     /// 車ファクトリ
     /// </summary>
-    CarRepository<Car02> factory;
+    CarRepository<Car02s,Car02> factory;
 
     /// <summary>
     /// 破棄
@@ -78,8 +58,8 @@ public class CarsController02 : MonoBehaviour
     /// </summary>
     void Update()
     {
-        carComputeShader.SetBuffer(0, "DrawInfos", factory.DrawInfoBuffer);
-        carComputeShader.SetBuffer(0, "DriveInfos", factory.DriveInfoBuffer);
+        carComputeShader.SetBuffer(0, "CarsStatic", factory.StaticInfoBuffer);
+        carComputeShader.SetBuffer(0, "CarsDynamic", factory.DynamicInfoBuffer);
         carComputeShader.SetFloat("DeltaTime", Time.deltaTime);
         carComputeShader.Dispatch(0, factory.Length / 8 + 1, 1, 1);
     }
@@ -89,7 +69,7 @@ public class CarsController02 : MonoBehaviour
     /// </summary>
     void InitializeComputeBuffer()
     {
-        factory = new CarRepository<Car02>(MAX_CARS);
+        factory = new CarRepository<Car02s,Car02>(MAX_CARS, CarTemplate02.dictionary);
         factory.AssignBuffers();
 
         RoadPlane02 roadPlane = GetComponent<RoadPlane02>();
@@ -110,8 +90,9 @@ public class CarsController02 : MonoBehaviour
     /// </summary>
     void OnRenderObject()
     {
-        // テクスチャ、バッファをマテリアルに設定
-        material.SetBuffer("Cars", factory.DrawInfoBuffer);
+        // 車データバッファをマテリアルに設定
+        material.SetBuffer("CarsStatic", factory.StaticInfoBuffer);
+        material.SetBuffer("CarsDynamic", factory.DynamicInfoBuffer);
         // レンダリングを開始
         material.SetPass(0);    
         // オブジェクトをレンダリング

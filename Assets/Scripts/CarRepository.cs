@@ -3,94 +3,17 @@ using System.Collections.Generic;
 using System;
 using System.Runtime.InteropServices;
 
-public interface IDriveInfo
-{
-    /// <summary>
-    /// 速度
-    /// </summary>
-    float velocity { get; set; }
-
-    /// <summary>
-    /// 運転者の理想速度、最大速度に影響
-    /// </summary>
-    float idealVelocity { get; set; }
-
-    /// <summary>
-    /// 機動性(加減速効率、旋回半径などに影響)
-    /// </summary>
-    float mobility { get; set; }
-}
-
-/// <summary>
-/// 車種
-/// </summary>
-public enum CarType
-{
-    Hidden,
-    Normal,
-    Senior,
-    Sports,
-    Bus,
-    TruckM,
-    TruckL
-}
-
-public interface ICar<T> where T : struct, IDriveInfo
+public interface ICar<S, D> where S : struct, ICarStaticInfo where D : struct, ICarDynamicInfo
 {
     CarType carType { get; }
-    CarDrawInfo DrawInfo { get; }
-    T DriveInfo { get; set; }
+    S Static { get; }
+    D Dynamic { get; set; }
 }
 
-public class CarRepository<T> where T: struct, IDriveInfo
+public partial class CarRepository<S,D> where S : struct, ICarStaticInfo where D: struct, ICarDynamicInfo
 {
-    class CarTemplate
-    {
-        /// <summary>
-        /// サイズ
-        /// </summary>
-        internal Vector3 size { get; private set; }
 
-        /// <summary>
-        /// 色
-        /// </summary>
-        internal Color color { get; private set; }
-
-        /// <summary>
-        /// 運転者の理想速度、最大速度に影響
-        /// </summary>
-        internal float idealVelocity { get; private set; }
-
-        /// <summary>
-        /// 機動性(加減速効率、旋回半径などに影響)
-        /// </summary>
-        internal float mobility { get; private set; }
-
-        public CarTemplate(float sx, float sy, float sz, Color col, float mob, float speed)
-        {
-            size = new Vector3(sx, sy, sz);
-            color = col;
-            mobility = mob;
-            idealVelocity = speed;
-        }
-    }
-
-    static Dictionary<CarType, CarTemplate> template;
-
-    static CarRepository()
-    {
-        // 車種ごとの雛形を準備
-        template = new Dictionary<CarType, CarTemplate>()
-        {
-            {CarType.Hidden, new CarTemplate(0, 0, 0, Color.black, 0f, 0) },
-            {CarType.Normal, new CarTemplate(2, 1, 4, Color.white, 1.0f, 80) },
-            {CarType.Senior, new CarTemplate(1.5f, 1, 2.5f, new Color(0.1f,0.8f,0.1f), 1.0f, 40) },
-            {CarType.Sports, new CarTemplate(2, 0.75f, 4, Color.red, 1.0f, 120) },
-            {CarType.Bus,    new CarTemplate(2.4f, 2f, 7f, Color.yellow, 0.85f, 60) },
-            {CarType.TruckM, new CarTemplate(2.4f, 2f, 7f, Color.cyan, 0.85f, 80) },
-            {CarType.TruckL, new CarTemplate(2.5f, 2f, 9, new Color(0.1f,0.1f,1), 0.7f, 100) },
-        };
-    }
+    private Dictionary<CarType, ICarTemplate<S,D>> templates;
     
     /// <summary>
     /// ランダム車種生成時に使う重みテーブル（車種ごとの出やすさ）
@@ -100,16 +23,16 @@ public class CarRepository<T> where T: struct, IDriveInfo
     /// <summary>
     /// 車のコンピュートバッファ
     /// </summary>
-    public ComputeBuffer DrawInfoBuffer { get; private set; }
-    private CarDrawInfo[] drawInfos;
+    public ComputeBuffer StaticInfoBuffer { get; private set; }
+    private S[] staticInfos;
 
     /// <summary>
     /// 車のDriveInfoコンピュートバッファ
     /// </summary>
-    public ComputeBuffer DriveInfoBuffer { get; private set; }
-    private T[] driveInfos;
+    public ComputeBuffer DynamicInfoBuffer { get; private set; }
+    private D[] dynamicInfos;
 
-    private CarImpl<T>[] cars;
+    private CarImpl<S,D>[] cars;
 
     private int nextIndex;
 
@@ -123,8 +46,9 @@ public class CarRepository<T> where T: struct, IDriveInfo
     /// </summary>
     public int Length { get; private set; }
 
-    public CarRepository(int maxsize)
+    public CarRepository(int maxsize, Dictionary<CarType, ICarTemplate<S,D>> templateDict)
     {
+        templates = templateDict;
         Length = maxsize;
         InitArrays();
     }
@@ -132,15 +56,15 @@ public class CarRepository<T> where T: struct, IDriveInfo
     private void InitArrays()
     {
         nextIndex = 0;
-        drawInfos = new CarDrawInfo[Length];
-        driveInfos = new T[Length];
-        cars = new CarImpl<T>[Length];
+        staticInfos = new S[Length];
+        dynamicInfos = new D[Length];
+        cars = new CarImpl<S,D>[Length];
         // リストの初期化
         for (int i = 0; i < Length; i++)
         {
-            drawInfos[i] = default(CarDrawInfo);
-            driveInfos[i] = default(T);
-            cars[i] = new CarImpl<T>(this, i, default(CarType));
+            staticInfos[i] = default(S);
+            dynamicInfos[i] = default(D);
+            cars[i] = new CarImpl<S,D>(this, i, default(CarType));
         }
     }
 
@@ -148,8 +72,8 @@ public class CarRepository<T> where T: struct, IDriveInfo
     {
         ReleaseBuffers(); // 未開放なら解放
 
-        DrawInfoBuffer = new ComputeBuffer(Length, Marshal.SizeOf(typeof(CarDrawInfo)));
-        DriveInfoBuffer = new ComputeBuffer(Length, Marshal.SizeOf(typeof(T)));
+        StaticInfoBuffer = new ComputeBuffer(Length, Marshal.SizeOf(typeof(S)));
+        DynamicInfoBuffer = new ComputeBuffer(Length, Marshal.SizeOf(typeof(D)));
     }
 
     /// <summary>
@@ -159,29 +83,19 @@ public class CarRepository<T> where T: struct, IDriveInfo
     /// <param name="pos"></param>
     /// <param name="dir"></param>
     /// <returns></returns>
-    public ICar<T> Create(CarType type, Vector2 pos, Vector2 dir)
+    public ICar<S,D> Create(CarType type, Vector2 pos, Vector2 dir)
     {
-        if(nextIndex >= drawInfos.Length)
+        if(nextIndex >= staticInfos.Length)
         {
-            throw new IndexOutOfRangeException("Cannot create because the buffer is full. " + drawInfos.Length);
+            throw new IndexOutOfRangeException("Cannot create because the buffer is full. " + staticInfos.Length);
         }
-        CarTemplate temp = template[type];
+        var temp = templates[type];
         cars[nextIndex].carType = type;
 
-        // CarDrawInfo の初期化
-        CarDrawInfo draw = new CarDrawInfo();
-        draw.direction = dir.normalized;
-        draw.pos = pos;
-        draw.color = temp.color;
-        draw.size = temp.size;
-        drawInfos[nextIndex] = draw;
-        // CarDriveInfo の初期化
-        T drive = new T();
-        drive.velocity = drive.idealVelocity = temp.idealVelocity;
-        drive.mobility = temp.mobility;
-        driveInfos[nextIndex] = drive;
+        staticInfos[nextIndex] = temp.MakeStaticInfo();
+        dynamicInfos[nextIndex] = temp.MakeDynaminInfo(pos, dir);
 
-        CarImpl<T> car = new CarImpl<T>(this, nextIndex++, type);
+        CarImpl<S,D> car = new CarImpl<S,D>(this, nextIndex++, type);
 
         return car;
     }
@@ -209,7 +123,7 @@ public class CarRepository<T> where T: struct, IDriveInfo
     /// <param name="pos"></param>
     /// <param name="dir"></param>
     /// <returns></returns>
-    public ICar<T> CreateRandomType(Vector2 pos, Vector2 dir)
+    public ICar<S,D> CreateRandomType(Vector2 pos, Vector2 dir)
     {
         CarType ct = GetRandomType();
         return Create(ct, pos, dir);
@@ -217,19 +131,19 @@ public class CarRepository<T> where T: struct, IDriveInfo
 
     private void FetchData()
     {
-        DrawInfoBuffer.GetData(drawInfos);
-        DriveInfoBuffer.GetData(driveInfos);
+        StaticInfoBuffer.GetData(staticInfos);
+        DynamicInfoBuffer.GetData(dynamicInfos);
     }
 
-    public ICar<T>[] GetCars() {
+    public ICar<S,D>[] GetCars() {
         FetchData();
         return cars;
     }
 
     public void ApplyData()
     {
-        DrawInfoBuffer.SetData(drawInfos);
-        DriveInfoBuffer.SetData(driveInfos);
+        StaticInfoBuffer.SetData(staticInfos);
+        DynamicInfoBuffer.SetData(dynamicInfos);
     }
 
     /// <summary>
@@ -244,45 +158,45 @@ public class CarRepository<T> where T: struct, IDriveInfo
         if (nextIndex >= 0)
         { 
             // 末尾のデータと入れ替えて穴埋めする
-            drawInfos[index] = drawInfos[nextIndex];
-            driveInfos[index] = driveInfos[nextIndex];
+            staticInfos[index] = staticInfos[nextIndex];
+            dynamicInfos[index] = dynamicInfos[nextIndex];
             cars[index] = cars[nextIndex];
         }
         // 消した分をゼロ埋めする
-        drawInfos[nextIndex] = default(CarDrawInfo);
-        driveInfos[nextIndex] = default(T);
+        staticInfos[nextIndex] = default(S);
+        dynamicInfos[nextIndex] = default(D);
         cars[nextIndex].carType = default(CarType);
     }
 
     public void ReleaseBuffers()
     {
-        if(DrawInfoBuffer != null)
+        if(StaticInfoBuffer != null)
         {
-            DrawInfoBuffer.Release();
-            DrawInfoBuffer = null;
+            StaticInfoBuffer.Release();
+            StaticInfoBuffer = null;
         }
-        if(DriveInfoBuffer != null)
+        if(DynamicInfoBuffer != null)
         {
-            DriveInfoBuffer.Release();
-            DriveInfoBuffer = null;
+            DynamicInfoBuffer.Release();
+            DynamicInfoBuffer = null;
         }
     }
 
-    class CarImpl<T> : ICar<T> where T : struct, IDriveInfo
+    class CarImpl<S,D> : ICar<S,D> where S : struct, ICarStaticInfo where D : struct, ICarDynamicInfo
     {
         internal int index { get; private set; }
         public CarType carType { get; internal set; }
 
-        private CarRepository<T> repository;
+        private CarRepository<S,D> repository;
 
-        public CarDrawInfo DrawInfo { get { return repository.drawInfos[index]; } }
+        public S Static { get { return repository.staticInfos[index]; } }
 
-        public T DriveInfo {
-            get { return repository.driveInfos[index]; }
-            set { repository.driveInfos[index] = value; }
+        public D Dynamic {
+            get { return repository.dynamicInfos[index]; }
+            set { repository.dynamicInfos[index] = value; }
         }
 
-        public CarImpl(CarRepository<T> repository, int index, CarType cartype)
+        public CarImpl(CarRepository<S,D> repository, int index, CarType cartype)
         {
             this.repository = repository;
             this.index = index;

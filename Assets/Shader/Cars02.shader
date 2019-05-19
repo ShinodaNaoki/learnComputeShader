@@ -1,4 +1,4 @@
-﻿ Shader "Custom/CarsShader" {
+﻿ Shader "Custom/CarsStatichader" {
 	SubShader {
         Tags {"Queue" = "Geometry" "RenderType" = "Opaque"}
         
@@ -25,16 +25,24 @@
 			fixed4 _LightColor0;
 
         	// 車の構造体
-			struct Car
+			struct CarS
 			{
 				float3 size;
 				float4 col;
+			};
+						
+        	// 車の構造体
+			struct CarD
+			{
 				float2 pos;
 				float2 dir;
+				float veloc;
 			};
+
         	
         	// 車の構造化バッファ
-        	StructuredBuffer<Car> Cars;
+        	StructuredBuffer<CarS> CarsStatic;
+        	StructuredBuffer<CarD> CarsDynamic;
 	        
 	        // 頂点シェーダからの出力
 	        struct VSOut {
@@ -46,13 +54,13 @@
 	        // 頂点シェーダ
 			VSOut vert (uint id : SV_VertexID)
 	       	{
-				Car car = Cars[id];
+				CarD car = CarsDynamic[id];
 
 				// idを元に、車の情報を取得
 	            VSOut output;
 	            output.pos = float4(car.pos.x, 0.0f, car.pos.y, 1);
 	            output.tex = float2(id, 0);
-	            output.col = car.col;
+	            output.col = CarsStatic[id].col;
 	             
 	            return output;
 	       	}
@@ -97,8 +105,8 @@
 		     	
 		   		// 全ての頂点で共通の値を計算しておく
 		      	float4 pos = input[0].pos;
-				float2 dir = Cars[input[0].tex.x].dir;
-				float3 size =  Cars[input[0].tex.x].size;
+				float2 dir = CarsDynamic[input[0].tex.x].dir;
+				float3 size =  CarsStatic[input[0].tex.x].size;
 		      	float4 clBody = input[0].col;
 				float4 clWind = float4(0.1,0.1,0.1,1.0);
 

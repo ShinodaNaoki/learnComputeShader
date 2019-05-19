@@ -1,30 +1,26 @@
 ﻿#pragma kernel CSMain
 
-// 車の描画情報
-struct DrawInfo
+// 車の静的情報
+struct CarS
 {
 	float3 size;
 	float4 col;
-	float2 pos;
-	float2 dir;
 };
 
-// 車の運転情報
-struct DriveInfo
+// 車の動的情報
+struct CarD
 {
+	float2 pos;
+	float2 dir;
 	float velocity;
-	float iedalVelocity;
-	float mobility;
 };
 
 // 前回の更新からの経過時間
 float DeltaTime;
 
 // 車の構造化バッファ
-RWStructuredBuffer<DrawInfo> DrawInfos;
-
-// 車の構造化バッファ
-RWStructuredBuffer<DriveInfo> DriveInfos;
+StructuredBuffer<CarS> CarsStatic;
+RWStructuredBuffer<CarD> CarsDynamic;
 
 struct Particle {
 	float3 m_Position;
@@ -59,13 +55,13 @@ RWStructuredBuffer<Particle> Particles;
 
 
 // Particle構造体へコピー
-inline void PrepareParticle(in DrawInfo draw, in DriveInfo drive, inout Particle p)
+inline void PrepareParticle(in CarS carS, in CarD carD, inout Particle p)
 {
-    p.m_Position = half3(draw.pos.x, 0.1, draw.pos.y) * 0.5;
-	p.m_StartSize = draw.size;
-	p.m_StartColor = Particle_ColorToUint(draw.col);	
+    p.m_Position = half3(carD.pos.x, 0.1, carD.pos.y) * 0.5;
+	p.m_StartSize = carS.size;
+	p.m_StartColor = Particle_ColorToUint(carS.col);	
 	const float radian90 = 3.14159 / 2;
-	p.m_Rotation = half3(1, 1 - draw.dir.y, draw.dir.x) * radian90; // 角度単位がC#と違う
+	p.m_Rotation = half3(1, 1 - carD.dir.y, carD.dir.x) * radian90; // 角度単位がC#と違う
 	p.m_StartLifetime = 1;
 	p.m_Lifetime = 1;
 }
@@ -74,7 +70,9 @@ inline void PrepareParticle(in DrawInfo draw, in DriveInfo drive, inout Particle
 [numthreads(8,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
+	CarD carD = CarsDynamic[id.x];
 	// それぞれの位置情報に移動ベクトルを加算　(0.28はkm/hをm/sに変換する係数)
-    DrawInfos[id.x].pos += DrawInfos[id.x].dir * DriveInfos[id.x].velocity * DeltaTime * 0.28;
-	PrepareParticle(DrawInfos[id.x], DriveInfos[id.x], Particles[id.x]);
+    carD.pos += carD.dir * carD.velocity * DeltaTime * 0.28;
+	CarsDynamic[id.x] = carD;
+	PrepareParticle(CarsStatic[id.x], carD, Particles[id.x]);
 }

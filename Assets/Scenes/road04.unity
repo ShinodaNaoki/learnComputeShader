@@ -5486,7 +5486,7 @@ MonoBehaviour:
   carShader: {fileID: 4800000, guid: aab5d1a3237b23541b0c1f4d5dc71177, type: 3}
   carComputeShader: {fileID: 7200000, guid: 35b702e427f8c4042b75003da54233ea, type: 3}
   particlesSystem: {fileID: 468709676}
-  setParticlesOnGPU: 1
+  setParticlesOnGPU: 0
 --- !u!1 &1911479037
 GameObject:
   m_ObjectHideFlags: 0
