@@ -72,6 +72,7 @@ public class CarsController04 : MonoBehaviour
     {
         carComputeShader.SetBuffer(0, "CarsStatic", factory.StaticInfoBuffer);
         carComputeShader.SetBuffer(0, "CarsDynamic", factory.DynamicInfoBuffer);
+        carComputeShader.SetInt("count", factory.ActiveCars);
         carComputeShader.SetFloat("DeltaTime", Time.deltaTime);
         carComputeShader.Dispatch(0, factory.Length / 8 + 1, 1, 1);
     }
@@ -109,8 +110,6 @@ public class CarsController04 : MonoBehaviour
         var entry = entries[index];
         factory.CreateRandomType(entry.pos, entry.dir);
         _lastEntries[index] = Time.frameCount;
-        Debug.Log("CreateCar");
-
         factory.ApplyData();
     }
 

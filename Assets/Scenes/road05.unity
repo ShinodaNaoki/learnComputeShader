@@ -851,7 +851,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   carShader: {fileID: 4800000, guid: aab5d1a3237b23541b0c1f4d5dc71177, type: 3}
-  carComputeShader: {fileID: 7200000, guid: 02ced8a372bf64f4bacb7a2930154c4b, type: 3}
+  carComputeShader: {fileID: 7200000, guid: 2ece52999d8cb5c4485658db665102f8, type: 3}
   statusText: {fileID: 526345538}
 --- !u!1 &1678869519
 GameObject:
