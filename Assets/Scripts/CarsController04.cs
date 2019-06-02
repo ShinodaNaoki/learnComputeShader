@@ -14,7 +14,7 @@ using System.Collections.Generic;
 /// </summary>
 public class CarsController04 : MonoBehaviour
 {
-    const int MAX_CARS = 10000;
+    const int MAX_CARS = 500;
 
     /// <summary>
     /// 車をレンダリングするシェーダー
@@ -90,7 +90,8 @@ public class CarsController04 : MonoBehaviour
         factory.ApplyData();
     }
 
-    private Dictionary<int, float> _lastEntries; 
+    const int MIN_INTERVAL_FRAMES = 60;
+    private Dictionary<int, int> _lastEntries = new Dictionary<int, int>();
 
     private void OnEachScan(Car[] cars)
     {
@@ -99,8 +100,15 @@ public class CarsController04 : MonoBehaviour
         var entries = roadPlane.EntryPoints;
 
         // 車を追加する
-        var entry = entries[Random.Range(0, entries.Count)];
+        int index = Random.Range(0, entries.Count);
+        int f;
+        if( _lastEntries.TryGetValue(index, out f) && Time.frameCount - f < MIN_INTERVAL_FRAMES)
+        { // 最初から衝突するのを避けるため、一定フレーム数内に車が入ったばかりなら次の機会を待つ
+            return; 
+        }
+        var entry = entries[index];
         factory.CreateRandomType(entry.pos, entry.dir);
+        _lastEntries[index] = Time.frameCount;
         Debug.Log("CreateCar");
 
         factory.ApplyData();
@@ -108,23 +116,20 @@ public class CarsController04 : MonoBehaviour
 
     private void OnEachElement(int index, Car car)
     {
-        if( roadPlane.isInside(car.Dynamic.pos) ) return;
+        if ( roadPlane.isInside(car.Dynamic.pos) ) return;
 
-        Debug.Log(string.Format("DeleteCar: #{0}", index));
         factory.Remove(index);
+        factory.ApplyData();
     }
 
     private int _currentIndex = 0;
     private IEnumerator WatchLoop(Action<Car[]> onScan, Action<int, Car> onElement)
     {
-        // １フレーム中に進むカウント数(60FPS想定)
-        const int cntParFrame = MAX_CARS / 60;
+        // １フレーム中に進むカウント数
+        const int COUNT_PER_FRAME = 10;
         Car[] carsArray = factory.GetCars();
+        onScan(carsArray);
         while (true) {
-            if (_currentIndex == 0)
-            {
-                onScan(carsArray);
-            }
 
             int cars = factory.ActiveCars;
             if (cars > 0)
@@ -133,6 +138,7 @@ public class CarsController04 : MonoBehaviour
                 {
                     _currentIndex = 0;
                     carsArray = factory.GetCars();
+                    onScan(carsArray);
                     yield return null;
                     continue;
                 }
@@ -141,18 +147,13 @@ public class CarsController04 : MonoBehaviour
                 _currentIndex++;
 
                 // 
-                if(_currentIndex % cntParFrame == 0)
+                if (_currentIndex % COUNT_PER_FRAME == 0)
                 {
-                    yield return null;
                     carsArray = factory.GetCars();
+                    onScan(carsArray);
+                    yield return null;
+                    continue;
                 }
-            }
-
-            // 車の数が少ない時でも一定のフレーム数でループするように調整
-            var wait = (MAX_CARS - cars) / cntParFrame;
-            for (int i = 0; i < wait; i++)
-            {
-                yield return null;
             }
         }
     }

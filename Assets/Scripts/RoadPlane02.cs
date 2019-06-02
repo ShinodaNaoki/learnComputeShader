@@ -170,7 +170,7 @@ public class RoadPlane02 : MonoBehaviour
 
     public bool isInside(Vector2 carPos)
     {
-        const float areaHalfSize = 100f;
+        const float areaHalfSize = 110f;
         return (Mathf.Abs(carPos.x) <= areaHalfSize & Mathf.Abs(carPos.y) <= areaHalfSize);
     }
 
