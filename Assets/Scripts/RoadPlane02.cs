@@ -168,6 +168,12 @@ public class RoadPlane02 : MonoBehaviour
         return roads;
     }
 
+    public bool isInside(Vector2 carPos)
+    {
+        const float areaHalfSize = 100f;
+        return (Mathf.Abs(carPos.x) <= areaHalfSize & Mathf.Abs(carPos.y) <= areaHalfSize);
+    }
+
     private Vector2 ToWorldPos(Vector2 local)
     {
         // Planeのmeshサイズは10なので、なんで20なのかよくわからないけど、ぴったり合う
