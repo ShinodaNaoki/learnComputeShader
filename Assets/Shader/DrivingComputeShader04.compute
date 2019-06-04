@@ -28,13 +28,13 @@ StructuredBuffer<CarS> CarsStatic;
 RWStructuredBuffer<CarD> CarsDynamic;
 
 // 2Dベクトル外積
-inline float cross2d(float2 a, float2 b) 
+inline float cross2d(float2 a, float2 b)
 {
   return a.x * b.y - a.y * b.x;
 }
 
 // 2Dベクトル内積
-inline float dot2d(float2 a, float2 b) 
+inline float dot2d(float2 a, float2 b)
 {
   return a.x * b.x + a.y * b.y;
 }
@@ -51,7 +51,7 @@ inline void GetSafeDistance(in CarS carS, in CarD carD, in float2 diffPosNml, ou
   float sina = cross2d(carD.dir, diffPosNml);
   float cosa = dot2d(carD.dir, diffPosNml);
   float2x2 _matrix = float2x2(cosa, -sina, sina, cosa);
-  
+
   // 車の四方の頂点を評価して、最大値を保存する
   float2 vert = carS.size.xz * 0.5; // (x,y)
   // dir は (1,0) が進行方向になっているので、回転後のy座標が diffPosNml との内積に等しい
@@ -61,12 +61,12 @@ inline void GetSafeDistance(in CarS carS, in CarD carD, in float2 diffPosNml, ou
   vert.x *= -1; // (x,-y)
   distance = max(distance, rotate2d(vert, _matrix).y);
   vert *= -1; // (-x,y)
-  distance = max(distance, rotate2d(vert, _matrix).y);  
+  distance = max(distance, rotate2d(vert, _matrix).y);
 }
 
 // 最も衝突の可能性の高い車のid(index)を返す
 inline void FindMostDangerCar(in uint id1, in uint id2, inout float timeMin, inout uint idMin)
-{	
+{
   if(timeMin <= 0) return; // 時すでに遅し
 
   CarD carD1 = CarsDynamic[id1];
@@ -74,7 +74,7 @@ inline void FindMostDangerCar(in uint id1, in uint id2, inout float timeMin, ino
   // 相対位置ベクトル
   float2 diffPos = carD2.pos - carD1.pos;
   // 相対速度ベクトル
-  float2 diffVel = carD2.velocity - carD1.velocity;
+  float2 diffVel = carD2.dir * carD2.velocity - carD1.dir * carD1.velocity;
 
   float dotPosAndVel = dot2d(diffPos,diffVel);
   // 内積が０以下なら衝突の可能性なし！
@@ -98,7 +98,7 @@ inline void FindMostDangerCar(in uint id1, in uint id2, inout float timeMin, ino
   // 最接近点での距離が二つの車のサイズを考慮した距離以上なら衝突しない
   float crossPosAndVel = abs(cross2d(diffPos,diffVel));
   if(crossPosAndVel > distance) return;
-  
+
   // このままだと近い将来衝突しそう
 
   float t = (dotPosAndVel - distance) / absVel;
@@ -115,7 +115,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 {
   uint idMin = id.x;
   int timeMin = 1000; // このままだとあと何回で衝突するか
-  for(uint i; i < count; i++) {
+  for(uint i = 0; i < count; i++) {
     if(i == id.x) continue;
     FindMostDangerCar(id.x, i, timeMin, idMin);
   }
