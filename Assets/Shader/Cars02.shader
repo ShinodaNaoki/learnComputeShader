@@ -1,4 +1,4 @@
-﻿ Shader "Custom/CarsStatichader" {
+﻿ Shader "Custom/CarsStatichader02" {
 	SubShader {
         Tags {"Queue" = "Geometry" "RenderType" = "Opaque"}
         

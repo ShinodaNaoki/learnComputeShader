@@ -13,7 +13,7 @@ public struct Car03d : ICarDynamicInfo
 
     public override string ToString()
     {
-        return string.Format("[{0},({1:0.0},{2:0.0})>>({3},{4})]", 
+        return string.Format("[{0},({1:0.0},{2:0.0})>>({3:0.0},{4:0.0})]", 
             typeof(Car03d).Name, 
             pos.x, pos.y, 
             direction.x * velocity, direction.y * velocity
@@ -43,12 +43,12 @@ public class CarTemplate03 : ICarTemplate<Car03s,Car03d>
     public static Dictionary<CarType, ICarTemplate<Car03s, Car03d>> dictionary = new Dictionary<CarType, ICarTemplate<Car03s, Car03d>>
     {
         {CarType.Hidden, new CarTemplate03(0, 0, 0, Color.black, 0f, 0) },
-        {CarType.Normal, new CarTemplate03(2, 1, 4, Color.white, 1.0f, 80) },
-        {CarType.Senior, new CarTemplate03(1.5f, 1, 2.5f, new Color(0.1f,0.8f,0.1f), 1.0f, 40) },
-        {CarType.Sports, new CarTemplate03(2, 0.75f, 4, Color.red, 1.0f, 120) },
-        {CarType.Bus,    new CarTemplate03(2.4f, 2f, 7f, Color.yellow, 0.85f, 60) },
-        {CarType.TruckM, new CarTemplate03(2.4f, 2f, 7f, Color.cyan, 0.85f, 80) },
-        {CarType.TruckL, new CarTemplate03(2.5f, 2f, 9, new Color(0.1f,0.1f,1), 0.7f, 100) },
+        {CarType.Normal, new CarTemplate03(2, 1, 4, Color.white, 1.0f, 70) },
+        {CarType.Senior, new CarTemplate03(1.5f, 1, 2.5f, new Color(0.1f,0.8f,0.1f), 1.0f, 65) },
+        {CarType.Sports, new CarTemplate03(2, 0.75f, 4, Color.red, 1.0f, 90) },
+        {CarType.Bus,    new CarTemplate03(2.4f, 2f, 7f, Color.yellow, 0.85f, 70) },
+        {CarType.TruckM, new CarTemplate03(2.4f, 2f, 7f, Color.cyan, 0.85f, 70) },
+        {CarType.TruckL, new CarTemplate03(2.5f, 2f, 9, new Color(0.1f,0.1f,1), 0.7f, 75) },
     };
 
 

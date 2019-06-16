@@ -153,6 +153,11 @@ public partial class CarRepository<S,D> where S : struct, ICarStaticInfo where D
     public void Remove(int index)
     {
         if (index == -1) return;
+        if (nextIndex <= index)
+        {
+            Debug.LogErrorFormat("Wrong index {0} (max {1})", index, nextIndex);
+            return;
+        }
 
         nextIndex--;
         if (nextIndex >= 0)
@@ -160,7 +165,7 @@ public partial class CarRepository<S,D> where S : struct, ICarStaticInfo where D
             // 末尾のデータと入れ替えて穴埋めする
             staticInfos[index] = staticInfos[nextIndex];
             dynamicInfos[index] = dynamicInfos[nextIndex];
-            cars[index] = cars[nextIndex];
+            cars[index] = new CarImpl<S, D>(this, index, cars[nextIndex].carType);
         }
         // 消した分をゼロ埋めする
         staticInfos[nextIndex] = default(S);

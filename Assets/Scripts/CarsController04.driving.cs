@@ -3,12 +3,13 @@ using Car = ICar<Car03s, Car03d>;
 using Car_S = Car03s;
 using Car_D = Car03d;
 
+#if CPU_DRIVING
 /// <summary>
 /// 沢山の車を管理するクラス
 /// </summary>
 public partial class CarsController04 : MonoBehaviour
 {
-    private const float MAX_FORCAST_COUNT = 25f;
+    private const float MAX_FORCAST_COUNT = 10f;
 
     // 2Dベクトル外積
     private float cross2d(Vector2 a, Vector2 b)
@@ -32,9 +33,7 @@ public partial class CarsController04 : MonoBehaviour
     private void GetSafeDistance(Car_S carS, Car_D carD, Vector2 diffPosNml, out float distance)
     {
         // Y軸回転の行列を作る
-        float sina = cross2d(carD.direction, diffPosNml);
-        float cosa = dot2d(carD.direction, diffPosNml);
-        Quaternion _matrix = new Quaternion(cosa, -sina, sina, cosa);
+        Quaternion _matrix = Quaternion.FromToRotation(diffPosNml, carD.direction);
 
         // 車の四方の頂点を評価して、最大値を保存する
         Vector2 vert = new Vector2(carS.size.x, carS.size.z) * 0.5f; // (x,y)
@@ -58,17 +57,29 @@ public partial class CarsController04 : MonoBehaviour
         // 相対位置ベクトル
         Vector2 diffPos = carD2.pos - carD1.pos;
         // 相対速度ベクトル
-        Vector2 diffVel = carD2.direction * carD2.velocity - carD1.direction * carD1.velocity;
+        Vector2 diffVel = carD1.direction * carD1.velocity - carD2.direction * carD2.velocity;
 
         float dotPosAndVel = dot2d(diffPos, diffVel);
         // 内積が０以下なら衝突の可能性なし！
-        if (dotPosAndVel < 0) return;
+        if (dotPosAndVel < 0)
+        {
+            return;
+        }
+
+        // 背後から接近してくるものは回避しない（相手任せ）
+        if (dot2d(diffPos, carD1.direction) < 0)
+        {
+            return;
+        }
 
         float absVel = diffVel.magnitude;
-        if (absVel == 0) return; // 接近していない
+        if (absVel < 0.001f) return; // 接近していない
 
         float countAssume = dotPosAndVel / absVel;
-        if (countAssume > MAX_FORCAST_COUNT) return; // 遠い未来過ぎるので無視
+        if (countAssume > MAX_FORCAST_COUNT)
+        {
+            return; // 遠い未来過ぎるので無視
+        }
 
         // 二つの車のサイズを考慮した距離を求める
         var carS1 = cars[id1].Static;
@@ -77,22 +88,31 @@ public partial class CarsController04 : MonoBehaviour
         float d1, d2;
         GetSafeDistance(carS1, carD1, diffPosNml, out d1);
         GetSafeDistance(carS2, carD2, -diffPosNml, out d2);
-        float distance = d1 + d2;
+        float distance = d1 + d2 + Mathf.Max(carD2.velocity, carD1.velocity) * 0.28f;
 
         // 最接近点での距離が二つの車のサイズを考慮した距離以上なら衝突しない
         float crossPosAndVel = Mathf.Abs(cross2d(diffPos, diffVel));
-        if (crossPosAndVel > distance) return;
+        if (crossPosAndVel > distance)
+        {
+            return;
+        }
 
 
-        float t = (dotPosAndVel - distance * 2) / absVel;
+        float t = (dotPosAndVel - distance) / absVel;
         // このままだと近い将来衝突しそう
-        Debug.Log(string.Format("#{0}{1}<->{2}{3}:\n t0={4}, vel={5}, dist={6}+{7}, t={8}",
-            id1, carD1, id2, carD2, countAssume, absVel, d1,d2, t));
-        if (t > timeMin) return; // もっと近い相手が既にいる
+        if (t > timeMin)
+        {
+            return; // もっと近い相手が既にいる
+        }        
 
         // 最小値更新
         timeMin = t;
         idMin = id2;
+        if(carD1.direction.y >= 0)
+        Debug.Log(
+            string.Format("<color='grey'>{0}<->{1}:\n</color> t0={2:0.0}, v={3:0.0}, dist={4:0.0}+{5:0.0}, t={6:0.0}({7:0.0})",
+                DebugStr(id1, cars[id1]), DebugStr(id2, cars[id2]), countAssume, absVel, d1, d2, t, timeMin));
+
     }
 
     private void DriveAll()
@@ -109,14 +129,15 @@ public partial class CarsController04 : MonoBehaviour
 
     private void Drive(Car[] cars, int id)
     {
-        Debug.Assert(cars[id].Static.size.z > 0, "Empty!");
-        int count = cars.Length;
+        if (cars[id].Static.size.z == 0) return; // 削除済みのデータ
+
+        int count = factory.ActiveCars;
         int idMin = id;
         float timeMin = 1000; // このままだとあと何回で衝突するか
         for (int i = 0; i < count; i++)
         {
             if (i == id) continue;
-            Debug.Assert(cars[i].Static.size.z > 0, "Empty!");
+            if (cars[i].Static.size.z == 0) break; // 削除済みのデータ＝末端に到達
             FindMostDangerCar(cars, id, i, ref timeMin, ref idMin);
         }
 
@@ -127,20 +148,54 @@ public partial class CarsController04 : MonoBehaviour
         { // 衝突の可能性の高い車はない
             if (carD.velocity < carS.idealVelocity)
             {
-                carD.velocity = Mathf.Min(carD.velocity + carS.mobility * 5f, carS.idealVelocity);
+                var p = carD.velocity;
+                carD.velocity = Mathf.Min(carD.velocity + carS.mobility * 1f, carS.idealVelocity);
+
+                if (carD.direction.y >= 0)
+                    Debug.Log(string.Format("{0}:\n <color='blue'>vel={1:0.0}</color>",
+                    DebugStr(id, cars[id]), carD.velocity - p));
+
             }
         }
         else
         {
             if (carD.velocity > 0)
             {
-                carD.velocity = Mathf.Max(0, carD.velocity - Mathf.Clamp01(10 / timeMin) * carS.mobility * 5f);
+                var p = carD.velocity;
+                carD.velocity = Mathf.Max(0, carD.velocity - carS.mobility * 50f / Mathf.Max(0.1f, timeMin));
+
+                if (carD.direction.y >= 0)
+                {
+                    if ((cars[idMin].Dynamic.pos - carD.pos).magnitude < 5)
+                    {
+                        carD.velocity = 0;
+                        Debug.LogErrorFormat(string.Format("{0}<->{1}:\n <color='magenta'>!!CRUSH!!</color>", 
+                            DebugStr(id, cars[id]), DebugStr(idMin, cars[idMin])));
+                    }
+                    else
+                    {
+                        Debug.Log(string.Format("{0}<->{1}:\n <color='red'>t={2:0.0}, v={3:0.0})</color>",
+                            DebugStr(id, cars[id]), DebugStr(idMin, cars[idMin]), timeMin, carD.velocity - p));
+                    }
+                }
             }
         }
 
         // それぞれの位置情報に移動ベクトルを加算　(0.28はkm/hをm/sに変換する係数)
-        //carD.pos += carD.direction * carD.velocity * Time.deltaTime * 0.28f;
+        carD.pos += carD.direction * carD.velocity * Time.deltaTime * 0.28f;
         cars[id].Dynamic = carD;
 
     }
+
+    private string DebugStr(int id, Car car)
+    {
+        var v = car.Dynamic.direction * car.Dynamic.velocity;
+        return string.Format(
+            "<color='#{1}'>■</color>{0}({2:0.0},{3:0.0})⇒({4:0.0},{5:0.0})",
+                    id, ColorUtility.ToHtmlStringRGB(car.Static.color),
+                    car.Dynamic.pos.x, car.Dynamic.pos.y,
+                    v.x, v.y
+        );
+    }
 }
+#endif

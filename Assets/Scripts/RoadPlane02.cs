@@ -193,7 +193,7 @@ public class RoadPlane02 : MonoBehaviour
             var offset = cross * LANE_WIDTH / 2;
             var step = cross * LANE_WIDTH;
             // 上りレーン
-            for(int i = 0; i< road.lanes.x; i++)
+            for(int i = 0; i< road.lanes.y; i++)
             {
                 entryPoints.Add(new EntryPoint(ToWorldPos(road.pos1 + offset), dir));
                 offset += step;
@@ -203,7 +203,7 @@ public class RoadPlane02 : MonoBehaviour
             offset = cross * LANE_WIDTH / 2;
             step = cross * LANE_WIDTH;
             // 下りレーン
-            for (int i = 0; i < road.lanes.y; i++)
+            for (int i = 0; i < road.lanes.x; i++)
             {
                 entryPoints.Add(new EntryPoint(ToWorldPos(road.pos2 + offset), dir));
                 offset += step;

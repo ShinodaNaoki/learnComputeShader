@@ -1,6 +1,6 @@
 ﻿#pragma kernel CSMain
 
-const int MAX_FORCAST_COUNT = 10000;
+const float MAX_FORCAST_COUNT = 55;
 
 // 車の総数
 uint count;
@@ -10,6 +10,8 @@ struct CarS
 {
 	float3 size;
 	float4 col;
+  float idealVelocity;
+  float mobility;
 };
 
 // 車の動的情報
@@ -18,6 +20,7 @@ struct CarD
 	float2 pos;
 	float2 dir;
 	float velocity;
+  int colider; 
 };
 
 // 前回の更新からの経過時間
@@ -74,14 +77,17 @@ inline void FindMostDangerCar(in uint id1, in uint id2, inout float timeMin, ino
   // 相対位置ベクトル
   float2 diffPos = carD2.pos - carD1.pos;
   // 相対速度ベクトル
-  float2 diffVel = carD2.dir * carD2.velocity - carD1.dir * carD1.velocity;
+  float2 diffVel = carD1.dir * carD1.velocity - carD2.dir * carD2.velocity;
 
   float dotPosAndVel = dot2d(diffPos,diffVel);
   // 内積が０以下なら衝突の可能性なし！
   if(dotPosAndVel < 0) return;
 
+  // 背後から接近してくるものは回避しない（相手任せ）
+  if (dot2d(diffVel, carD1.dir) < 0) return;
+        
   float absVel = length(diffVel);
-  if(absVel == 0) return; // 接近していない
+  if(absVel < 0.001) return; // 接近していない
 
   float countAssume = dotPosAndVel / absVel;
   //if(countAssume > MAX_FORCAST_COUNT) return; // 遠い未来過ぎるので無視
@@ -93,7 +99,7 @@ inline void FindMostDangerCar(in uint id1, in uint id2, inout float timeMin, ino
   float d1,d2;
   GetSafeDistance(carS1, carD1, diffPosNml, d1);
   GetSafeDistance(carS2, carD2, -diffPosNml, d2);
-  float distance = d1 + d2;
+  float distance = d1 + d2 + max(carD2.velocity, carD1.velocity) * 0.28f;
 
   // 最接近点での距離が二つの車のサイズを考慮した距離以上なら衝突しない
   float crossPosAndVel = abs(cross2d(diffPos,diffVel));
@@ -115,22 +121,27 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 {
   uint idMin = id.x;
   int timeMin = 1000; // このままだとあと何回で衝突するか
+  
   for(uint i = 0; i < count; i++) {
     if(i == id.x) continue;
+    if(CarsStatic[i].size.z == 0) break; // 削除済みのデータ＝末端に到達
     FindMostDangerCar(id.x, i, timeMin, idMin);
   }
-
+  
   CarD carD = CarsDynamic[id.x];
 	CarS carS = CarsStatic[id.x];
 
   if(idMin == id.x) { // 衝突の可能性の高い車はない
-    if(carD.velocity < 60) {
-      carD.velocity += 1;
+    if(carD.velocity < carS.idealVelocity) {
+      carD.velocity = min(carD.velocity + carS.mobility, carS.idealVelocity);
     }
   }
   else {
     if(carD.velocity > 0) {
-      carD.velocity -= saturate(10/timeMin) * 2;
+      carD.velocity = max(0,  carD.velocity - carS.mobility * 500 / max(0.1, timeMin));
+      if( length(CarsDynamic[idMin].pos - carD.pos) < 500 ){
+        carD.velocity = 0;
+      }
     }
   }
 

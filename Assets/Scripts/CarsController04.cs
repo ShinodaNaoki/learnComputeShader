@@ -5,16 +5,21 @@ using System.Collections;
 using System;
 using Random = UnityEngine.Random;
 
-using Car = ICar<Car02s, Car02>;
-using CarRepository = CarRepository<Car02s, Car02>;
+using Car = ICar<Car03s, Car03d>;
+using CarRepository = CarRepository<Car03s, Car03d>;
 using System.Collections.Generic;
+using System.Text;
 
 /// <summary>
 /// 沢山の車を管理するクラス
 /// </summary>
-public class CarsController04 : MonoBehaviour
+public partial class CarsController04 : MonoBehaviour
 {
-    const int MAX_CARS = 500;
+#if CPU_DRIVING
+    const int MAX_CARS = 10;
+#else
+    const int MAX_CARS = 400;
+#endif
 
     /// <summary>
     /// 車をレンダリングするシェーダー
@@ -70,11 +75,15 @@ public class CarsController04 : MonoBehaviour
     /// </summary>
     void Update()
     {
+#if CPU_DRIVING
+#else
         carComputeShader.SetBuffer(0, "CarsStatic", factory.StaticInfoBuffer);
         carComputeShader.SetBuffer(0, "CarsDynamic", factory.DynamicInfoBuffer);
         carComputeShader.SetInt("count", factory.ActiveCars);
         carComputeShader.SetFloat("DeltaTime", Time.deltaTime);
-        carComputeShader.Dispatch(0, factory.Length / 8 + 1, 1, 1);
+        var carnum = factory.ActiveCars;
+        carComputeShader.Dispatch(0, carnum / 8 + 1, 1, 1);
+#endif
     }
 
     /// <summary>
@@ -82,7 +91,7 @@ public class CarsController04 : MonoBehaviour
     /// </summary>
     void InitializeComputeBuffer()
     {
-        factory = new CarRepository(MAX_CARS, CarTemplate02.dictionary);
+        factory = new CarRepository(MAX_CARS, CarTemplate03.dictionary);
         factory.AssignBuffers();
 
 
@@ -91,7 +100,7 @@ public class CarsController04 : MonoBehaviour
         factory.ApplyData();
     }
 
-    const int MIN_INTERVAL_FRAMES = 60;
+    const int MIN_INTERVAL_FRAMES = 90;
     private Dictionary<int, int> _lastEntries = new Dictionary<int, int>();
 
     private void OnEachScan(Car[] cars)
@@ -107,6 +116,7 @@ public class CarsController04 : MonoBehaviour
         { // 最初から衝突するのを避けるため、一定フレーム数内に車が入ったばかりなら次の機会を待つ
             return; 
         }
+
         var entry = entries[index];
         factory.CreateRandomType(entry.pos, entry.dir);
         _lastEntries[index] = Time.frameCount;
@@ -121,6 +131,45 @@ public class CarsController04 : MonoBehaviour
         factory.ApplyData();
     }
 
+#if CPU_DRIVING
+    private IEnumerator WatchLoop(Action<Car[]> onScan, Action<int, Car> onElement)
+    {
+        while (true)
+        {
+            Car[] carsArray = factory.GetCars();
+
+            //FullDump(carsArray);
+
+            onScan(carsArray);
+            int cars = factory.ActiveCars;
+            for (int index = 0; index < cars; index++)
+            {
+                Drive(carsArray, index);
+                onElement(index, carsArray[index]);
+            }
+            factory.ApplyData();
+            yield return null;
+        }
+    }
+
+    private void FullDump(Car[] carsArray)
+    {
+        var sb = new StringBuilder();
+        for (int i = 0; i < MAX_CARS; i++)
+        {
+            var car = carsArray[i];
+            if (car.Static.size.z == 0)
+            {
+                sb.AppendFormat("#{0} Empty", i);
+                sb.AppendLine();
+                continue;
+            }
+            sb.Append(DebugStr(i, car));
+            sb.AppendLine();
+        }
+        Debug.Log(sb.ToString());
+    }
+#else
     private int _currentIndex = 0;
     private IEnumerator WatchLoop(Action<Car[]> onScan, Action<int, Car> onElement)
     {
@@ -156,6 +205,9 @@ public class CarsController04 : MonoBehaviour
             }
         }
     }
+
+#endif
+
 
     /// <summary>
     /// レンダリング

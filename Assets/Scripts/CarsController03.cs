@@ -3,16 +3,6 @@ using System.Runtime.InteropServices;
 using System;
 
 /// <summary>
-/// 車の構造体
-/// </summary>
-internal struct Car03 : ICarDynamicInfo
-{
-    public float velocity { get; set; }
-    public Vector2 pos { get; set; }
-    public Vector2 direction { get; set; }
-}
-
-/// <summary>
 /// 沢山の車を管理するクラス
 /// </summary>
 public class CarsController03 : MonoBehaviour
