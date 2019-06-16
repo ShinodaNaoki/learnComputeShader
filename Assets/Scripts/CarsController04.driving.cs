@@ -9,7 +9,7 @@ using Car_D = Car03d;
 /// </summary>
 public partial class CarsController04 : MonoBehaviour
 {
-    private const float MAX_FORCAST_COUNT = 10f;
+    private const float MAX_FORCAST_COUNT = 20f;
 
     // 2Dベクトル外積
     private float cross2d(Vector2 a, Vector2 b)
@@ -88,17 +88,19 @@ public partial class CarsController04 : MonoBehaviour
         float d1, d2;
         GetSafeDistance(carS1, carD1, diffPosNml, out d1);
         GetSafeDistance(carS2, carD2, -diffPosNml, out d2);
-        float distance = d1 + d2 + Mathf.Max(carD2.velocity, carD1.velocity) * 0.28f;
+        float distance = d1 + d2;
 
         // 最接近点での距離が二つの車のサイズを考慮した距離以上なら衝突しない
-        float crossPosAndVel = Mathf.Abs(cross2d(diffPos, diffVel));
+        float crossPosAndVel = Mathf.Abs(cross2d(diffPos, diffVel.normalized));
         if (crossPosAndVel > distance)
         {
             return;
         }
 
+        // どちらかが高速で移動しているなら停止距離には余裕を持つ
+        distance += Mathf.Max(carD2.velocity, carD1.velocity) * 0.28f;
 
-        float t = (dotPosAndVel - distance) / absVel;
+        float t = Mathf.Max(0, (dotPosAndVel - distance) / absVel);
         // このままだと近い将来衝突しそう
         if (t > timeMin)
         {

@@ -1,6 +1,6 @@
 ﻿#pragma kernel CSMain
 
-const float MAX_FORCAST_COUNT = 55;
+const float MAX_FORCAST_COUNT = 20;
 
 // 車の総数
 uint count;
@@ -84,7 +84,7 @@ inline void FindMostDangerCar(in uint id1, in uint id2, inout float timeMin, ino
   if(dotPosAndVel < 0) return;
 
   // 背後から接近してくるものは回避しない（相手任せ）
-  if (dot2d(diffVel, carD1.dir) < 0) return;
+  if (dot2d(diffPos, carD1.dir) < 0) return;
         
   float absVel = length(diffVel);
   if(absVel < 0.001) return; // 接近していない
@@ -99,15 +99,18 @@ inline void FindMostDangerCar(in uint id1, in uint id2, inout float timeMin, ino
   float d1,d2;
   GetSafeDistance(carS1, carD1, diffPosNml, d1);
   GetSafeDistance(carS2, carD2, -diffPosNml, d2);
-  float distance = d1 + d2 + max(carD2.velocity, carD1.velocity) * 0.28f;
+  float distance = d1 + d2; 
 
   // 最接近点での距離が二つの車のサイズを考慮した距離以上なら衝突しない
-  float crossPosAndVel = abs(cross2d(diffPos,diffVel));
+  float crossPosAndVel = abs(cross2d(diffPos, normalize(diffVel)));
   if(crossPosAndVel > distance) return;
+
+  // どちらかが高速で移動しているなら停止距離には余裕を持つ
+  distance += max(carD2.velocity, carD1.velocity) * 0.28f;
 
   // このままだと近い将来衝突しそう
 
-  float t = (dotPosAndVel - distance) / absVel;
+  float t = max(0, (dotPosAndVel - distance) / absVel);
   if(t > timeMin) return; // もっと近い相手が既にいる
 
   // 最小値更新
