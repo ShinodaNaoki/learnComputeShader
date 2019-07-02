@@ -1,7 +1,7 @@
 using UnityEngine;
-using Car = ICar<Car03s, Car03d>;
+using Car = ICar<Car03s, Car04d>;
 using Car_S = Car03s;
-using Car_D = Car03d;
+using Car_D = Car04d;
 
 #if CPU_DRIVING
 /// <summary>
@@ -9,7 +9,7 @@ using Car_D = Car03d;
 /// </summary>
 public partial class CarsController05 : MonoBehaviour
 {
-    private const float MAX_FORCAST_COUNT = 20f;
+    private const float MAX_FORCAST_COUNT = 100000f;
 
     // 2Dベクトル外積
     private float cross2d(Vector2 a, Vector2 b)
@@ -29,24 +29,6 @@ public partial class CarsController05 : MonoBehaviour
         return mat * v2d;
     }
 
-    // 指定方向に最も張り出した頂点の距離から、最大衝突距離を計算する
-    private void GetSafeDistance(Car_S carS, Car_D carD, Vector2 diffNml, out float distance)
-    {
-        // Y軸回転の行列を作る
-        Quaternion _matrix = Quaternion.FromToRotation(carD.direction, diffNml);
-
-        // 車の四方の頂点を評価して、最大値を保存する
-        Vector2 vert = new Vector2(carS.size.x, carS.size.z) * 0.5f; // (x,y)
-                                                                     // dir は (1,0) が進行方向になっているので、回転後のy座標が diffPosNml との内積に等しい
-        distance = rotate2d(vert, _matrix).y;
-        vert *= -1; // (-x,-y)
-        distance = Mathf.Max(distance, rotate2d(vert, _matrix).y);
-        vert.x *= -1; // (x,-y)
-        distance = Mathf.Max(distance, rotate2d(vert, _matrix).y);
-        vert *= -1; // (-x,y)
-        distance = Mathf.Max(distance, rotate2d(vert, _matrix).y);
-    }
-
     // 最も衝突の可能性の高い車のid(index)を返す
     private void FindMostDangerCar(Car[] cars, int id1, int id2, ref float timeMin, ref int idMin)
     {
@@ -54,54 +36,38 @@ public partial class CarsController05 : MonoBehaviour
 
         var carD1 = cars[id1].Dynamic;
         var carD2 = cars[id2].Dynamic;
+        // 別車線は無視
+        if (carD1.lane != carD2.lane)
+        {
+            return;
+        }
+
         // 相対位置ベクトル
         Vector2 diffPos = carD2.pos - carD1.pos;
-        // 相対速度ベクトル
-        Vector2 diffVel = carD1.direction * carD1.velocity - carD2.direction * carD2.velocity;
-
-        float dotPosAndVel = dot2d(diffPos, diffVel);
-        // 内積が０以下なら衝突の可能性なし！
-        if (dotPosAndVel < 0)
-        {
-            return;
-        }
 
         // 背後から接近してくるものは回避しない（相手任せ）
-        if (dot2d(diffPos, carD1.direction) < 0)
-        {
-            return;
-        }
+        if(dot2d(carD1.direction, diffPos) <= 0) return;
 
-        float absVel = diffVel.magnitude;
-        if (absVel < 0.001f) return; // 接近していない
+        // 相対速度ベクトル
+        float diffVel = (carD1.velocity - carD2.velocity) * 0.28f;
+        if (diffVel < 0.001f) return; // 接近していない
 
-        float countAssume = dotPosAndVel / absVel;
-        if (countAssume > MAX_FORCAST_COUNT)
+        float absPos = diffPos.magnitude;
+        float countAssume = absPos / diffVel;
+        if (countAssume > 100000f)
         {
             return; // 遠い未来過ぎるので無視
         }
 
         // 二つの車のサイズを考慮した距離を求める
+        // 同一車線なので基本的に両車の長さの半分を足したもの
         var carS1 = cars[id1].Static;
         var carS2 = cars[id2].Static;
-        Vector2 diffVelNml = diffVel.normalized;
-        Vector2 diffPosNml = diffPos.normalized;
-        float d1, d2;
-        GetSafeDistance(carS1, carD1, diffVelNml, out d1);
-        GetSafeDistance(carS2, carD2, -diffVelNml, out d2);
-        float distance = d1 + d2;
-
-        // 最接近点での距離が二つの車のサイズを考慮した距離以上なら衝突しない
-        float crossPosAndVel = Mathf.Abs(cross2d(diffPos, diffVelNml));
-        if (crossPosAndVel > distance)
-        {
-            return;
-        }
-
+        float distance = (carS1.size.z + carS2.size.z) * 0.5f;
         // どちらかが高速で移動しているなら停止距離には余裕を持つ
-        //distance += Mathf.Max(carD2.velocity, carD1.velocity) * 0.28f;
+        distance += Mathf.Max(carD1.velocity, carD2.velocity) * 0.28f;
 
-        float t = Mathf.Max(0, (dotPosAndVel - distance) / absVel);
+        float t = Mathf.Max(0, (absPos - distance) / diffVel);
         // このままだと近い将来衝突しそう
         if (t > timeMin)
         {
@@ -113,8 +79,8 @@ public partial class CarsController05 : MonoBehaviour
         idMin = id2;
         if(carD1.direction.y >= 0)
         Debug.Log(
-            string.Format("<color='grey'>{0}<->{1}:\n</color> t0={2:0.0}, v={3:0.0}, dist={4:0.0}+{5:0.0}, t={6:0.0}({7:0.0})",
-                DebugStr(id1, cars[id1]), DebugStr(id2, cars[id2]), countAssume, absVel, d1, d2, t, timeMin));
+            string.Format("<color='grey'>{0}<->{1}:\n</color> dPos={2:0.0}, dst={3:0.0}, dV={4:0.0} (t={5:0.0})",
+                DebugStr(id1, cars[id1]), DebugStr(id2, cars[id2]), absPos, distance, diffVel, t));
 
     }
 
@@ -165,7 +131,7 @@ public partial class CarsController05 : MonoBehaviour
             if (carD.velocity > 0)
             {
                 var p = carD.velocity;
-                carD.velocity = Mathf.Max(0, carD.velocity - carS.mobility * 50f / Mathf.Max(0.1f, timeMin));
+                carD.velocity = Mathf.Max(0, carD.velocity - carS.mobility * 2f);
 
                 if (carD.direction.y >= 0)
                 {
@@ -194,10 +160,10 @@ public partial class CarsController05 : MonoBehaviour
     {
         var v = car.Dynamic.direction * car.Dynamic.velocity;
         return string.Format(
-            "<color='#{1}'>■</color>{0}({2:0.0},{3:0.0})⇒({4:0.0},{5:0.0})",
+            "<color='#{1}'>■</color>{0}@{6}({2:0.0},{3:0.0})⇒({4:0.0},{5:0.0})",
                     id, ColorUtility.ToHtmlStringRGB(car.Static.color),
                     car.Dynamic.pos.x, car.Dynamic.pos.y,
-                    v.x, v.y
+                    v.x, v.y, car.Dynamic.lane
         );
     }
 }

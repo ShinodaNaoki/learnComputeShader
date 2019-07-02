@@ -139,7 +139,7 @@ public class RoadPlane02 : MonoBehaviour
     /// </summary>
     private Road02[] InitializeComputeBuffer()
     {
-        var count = 3;
+        var count = 1;
         roadsBuffer = new ComputeBuffer(count, Marshal.SizeOf(typeof(Road02)));
 
         // 配列に初期値を代入する
@@ -148,7 +148,7 @@ public class RoadPlane02 : MonoBehaviour
         var x = step;
         for (int i = 0; i < count; i++)
         {
-            roads[i] = new Road02(new Vector2(x, 0.0f * MAP_SIZE) , new Vector2(x, 1.0f * MAP_SIZE), new Vector2(2,2));
+            roads[i] = new Road02(new Vector2(x, 0.0f * MAP_SIZE) , new Vector2(x, 1.0f * MAP_SIZE), new Vector2(3,3));
             x += step;
         }
 

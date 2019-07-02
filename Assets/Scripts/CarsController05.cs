@@ -5,8 +5,8 @@ using System.Collections;
 using System;
 using Random = UnityEngine.Random;
 
-using Car = ICar<Car03s, Car03d>;
-using CarRepository = CarRepository<Car03s, Car03d>;
+using Car = ICar<Car03s, Car04d>;
+using CarRepository = CarRepository<Car03s, Car04d>;
 using System.Collections.Generic;
 using System.Text;
 
@@ -91,7 +91,7 @@ public partial class CarsController05 : MonoBehaviour
     /// </summary>
     void InitializeComputeBuffer()
     {
-        factory = new CarRepository(MAX_CARS, CarTemplate03.dictionary);
+        factory = new CarRepository(MAX_CARS, CarTemplate04.dictionary);
         factory.AssignBuffers();
 
 
@@ -118,7 +118,10 @@ public partial class CarsController05 : MonoBehaviour
         }
 
         var entry = entries[index];
-        factory.CreateRandomType(entry.pos, entry.dir);
+        var car = factory.CreateRandomType(entry.pos, entry.dir);
+        var car_d = car.Dynamic;
+        car_d.lane = index;
+        car.Dynamic = car_d;
         _lastEntries[index] = Time.frameCount;
         factory.ApplyData();
     }

@@ -1,6 +1,6 @@
 ﻿#pragma kernel CSMain
 
-const float MAX_FORCAST_COUNT = 20.0;
+const float MAX_FORCAST_COUNT = 100000.0;
 
 // 車の総数
 uint count;
@@ -20,6 +20,7 @@ struct CarD
 	float2 pos;
 	float2 dir;
 	float velocity;
+  int lane;
   int colider; 
 };
 
@@ -39,32 +40,13 @@ inline float cross2d(float2 a, float2 b)
 // 2Dベクトル内積
 inline float dot2d(float2 a, float2 b)
 {
-  return a.x * b.y + a.y * b.y;
+  return a.x * b.x + a.y * b.y;
 }
 
 // 2Dベクトル回転
 inline float2 rotate2d(in float2 v2d, in float2x2 mat)
 {
   return mul(v2d, mat);
-}
-
-// 指定方向に最も張り出した頂点の距離から、最大衝突距離を計算する
-inline void GetSafeDistance(in CarS carS, in CarD carD, in float2 diffPosNml, out float distance){
-  // Y軸回転の行列を作る
-  float sina = cross2d(carD.dir, diffPosNml);
-  float cosa = dot2d(carD.dir, diffPosNml);
-  float2x2 _matrix = float2x2(cosa, -sina, sina, cosa);
-
-  // 車の四方の頂点を評価して、最大値を保存する
-  float2 vert = carS.size.xz * 0.5; // (x,y)
-  // dir は (1,0) が進行方向になっているので、回転後のy座標が diffPosNml との内積に等しい
-  distance = rotate2d(vert, _matrix).y;
-  vert *= -1; // (-x,-y)
-  distance = max(distance, rotate2d(vert, _matrix).y);
-  vert.x *= -1; // (x,-y)
-  distance = max(distance, rotate2d(vert, _matrix).y);
-  vert *= -1; // (-x,y)
-  distance = max(distance, rotate2d(vert, _matrix).y);
 }
 
 // 最も衝突の可能性の高い車のid(index)を返す
@@ -74,44 +56,44 @@ inline void FindMostDangerCar(in uint id1, in uint id2, inout float timeMin, ino
 
   CarD carD1 = CarsDynamic[id1];
   CarD carD2 = CarsDynamic[id2];
+  // 別車線は無視
+  if (carD1.lane != carD2.lane)
+  {
+      return;
+  }
+
   // 相対位置ベクトル
   float2 diffPos = carD2.pos - carD1.pos;
-  // 相対速度ベクトル
-  float2 diffVel = carD1.dir * carD1.velocity - carD2.dir * carD2.velocity;
 
-  float dotPosAndVel = dot2d(diffPos,diffVel);
-  // 内積が０以下なら衝突の可能性なし！
-  if(dotPosAndVel < 0) return;
 
   // 背後から接近してくるものは回避しない（相手任せ）
-  if (dot2d(diffPos, carD1.dir) < 0) return;
-        
-  float absVel = length(diffVel);
-  if(absVel < 0.001) return; // 接近していない
+  if (dot2d(carD1.dir, diffPos) <= 0) return;
 
-  float countAssume = dotPosAndVel / absVel;
-  if(countAssume > MAX_FORCAST_COUNT) return; // 遠い未来過ぎるので無視
+  // 相対速度ベクトル
+  float diffVel = (carD1.velocity - carD2.velocity) * 0.28;
+  if(diffVel < 0.00001){
+    return; // 接近していない
+  }
+
+  float absPos = length(diffPos);
+  float countAssume = absPos / diffVel;
+  if(countAssume > 100000){
+    return; // 遠い未来過ぎるので無視
+  }
 
   // 二つの車のサイズを考慮した距離を求める
+  // 同一車線なので基本的に両車の長さの半分を足したもの
   CarS carS1 = CarsStatic[id1];
   CarS carS2 = CarsStatic[id2];
-  float2 diffVelNml = normalize(diffVel);
-  float d1,d2;
-  GetSafeDistance(carS1, carD1, diffVelNml, d1);
-  GetSafeDistance(carS2, carD2, -diffVelNml, d2);
-  float distance = d1 + d2; 
-
-  // 最接近点での距離が二つの車のサイズを考慮した距離以上なら衝突しない
-  float crossPosAndVel = abs(cross2d(diffPos, diffVelNml));
-  if(crossPosAndVel > distance) return;
-
+  float distance = (carS1.size.z + carS2.size.z) * 0.5; 
   // どちらかが高速で移動しているなら停止距離には余裕を持つ
-  distance += max(carD2.velocity, carD1.velocity) * 0.28f;
+  distance += max(carD1.velocity, carD2.velocity) * 0.28f;
 
+  float t = max(0, (absPos - distance) / diffVel);
   // このままだと近い将来衝突しそう
-
-  float t = max(0, (dotPosAndVel - distance) / absVel);
-  if(t > timeMin) return; // もっと近い相手が既にいる
+  if(t > timeMin){
+    return; // もっと近い相手が既にいる
+  }
 
   // 最小値更新
   timeMin = t;
@@ -141,8 +123,8 @@ void CSMain (uint3 id : SV_DispatchThreadID)
   }
   else {
     if(carD.velocity > 0) {
-      carD.velocity = max(0,  carD.velocity - carS.mobility * 500 / max(0.1, timeMin));
-      if( length(CarsDynamic[idMin].pos - carD.pos) < 500 ){
+      carD.velocity = max(0,  carD.velocity - carS.mobility * 2.0);
+      if( length(CarsDynamic[idMin].pos - carD.pos) < 5 ){
         carD.velocity = 0;
       }
     }

@@ -850,7 +850,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d09e96d0be5e61049ae3b94de8182be8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  carShader: {fileID: 4800000, guid: 2f93d2ae542f8084fa649b46e02da270, type: 3}
+  carShader: {fileID: 4800000, guid: 352e90e99193b654992be31586d182cc, type: 3}
   carComputeShader: {fileID: 7200000, guid: 2f24d6784ce2da144ba436589dadc176, type: 3}
   statusText: {fileID: 526345538}
 --- !u!1 &1678869519
