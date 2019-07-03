@@ -5,15 +5,15 @@ using System.Collections;
 using System;
 using Random = UnityEngine.Random;
 
-using Car = ICar<Car03s, Car04d>;
-using CarRepository = CarRepository<Car03s, Car04d>;
+using Car = ICar<Car03s, Car05d>;
+using CarRepository = CarRepository<Car03s, Car05d>;
 using System.Collections.Generic;
 using System.Text;
 
 /// <summary>
 /// 沢山の車を管理するクラス
 /// </summary>
-public partial class CarsController05 : MonoBehaviour
+public partial class CarsController06 : MonoBehaviour
 {
 #if CPU_DRIVING
     const int MAX_CARS = 100;
@@ -51,6 +51,8 @@ public partial class CarsController05 : MonoBehaviour
     /// </summary>
     RoadPlane02 roadPlane;
 
+    private int[] Kernels;
+
     /// <summary>
     /// 破棄
     /// </summary>
@@ -77,12 +79,22 @@ public partial class CarsController05 : MonoBehaviour
     {
 #if CPU_DRIVING
 #else
-        carComputeShader.SetBuffer(0, "CarsStatic", factory.StaticInfoBuffer);
-        carComputeShader.SetBuffer(0, "CarsDynamic", factory.DynamicInfoBuffer);
         carComputeShader.SetInt("count", factory.ActiveCars);
         carComputeShader.SetFloat("DeltaTime", Time.deltaTime);
         var carnum = factory.ActiveCars;
-        carComputeShader.Dispatch(0, carnum / 64 + 1, 1, 1);
+        foreach (int index in Kernels)
+        {
+            carComputeShader.SetBuffer(index, "CarsStatic", factory.StaticInfoBuffer);
+            carComputeShader.SetBuffer(index, "CarsDynamic", factory.DynamicInfoBuffer);
+            if(index == 1)
+            { // Scanフェーズだけ二次元
+                carComputeShader.Dispatch(index, carnum / 8 + 1, carnum / 8 + 1, 1);
+            }
+            else
+            {
+                carComputeShader.Dispatch(index, carnum / 64 + 1, 1, 1);
+            }
+        }
 #endif
     }
 
@@ -91,12 +103,19 @@ public partial class CarsController05 : MonoBehaviour
     /// </summary>
     void InitializeComputeBuffer()
     {
-        factory = new CarRepository(MAX_CARS, CarTemplate04.dictionary);
+        factory = new CarRepository(MAX_CARS, CarTemplate05.dictionary);
         factory.AssignBuffers();
 
 
         StartCoroutine(WatchLoop(OnEachScan, OnEachElement));
 
+        Kernels = new int[]
+        {
+            carComputeShader.FindKernel("Init"),
+            carComputeShader.FindKernel("Scan"),
+            carComputeShader.FindKernel("Drive")
+        };
+        
         factory.ApplyData();
     }
 

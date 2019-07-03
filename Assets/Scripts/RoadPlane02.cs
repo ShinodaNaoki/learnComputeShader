@@ -139,7 +139,7 @@ public class RoadPlane02 : MonoBehaviour
     /// </summary>
     private Road02[] InitializeComputeBuffer()
     {
-        var count = 1;
+        var count = 3;
         roadsBuffer = new ComputeBuffer(count, Marshal.SizeOf(typeof(Road02)));
 
         // 配列に初期値を代入する

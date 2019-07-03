@@ -1,4 +1,6 @@
-﻿#pragma kernel CSMain
+﻿#pragma kernel Init
+#pragma kernel Scan
+#pragma kernel Drive
 
 const float MAX_FORCAST_COUNT = 100000.0;
 
@@ -22,6 +24,7 @@ struct CarD
 	float velocity;
   int lane;
   int colider; 
+  float ticks;
 };
 
 // 前回の更新からの経過時間
@@ -49,13 +52,35 @@ inline float2 rotate2d(in float2 v2d, in float2x2 mat)
   return mul(v2d, mat);
 }
 
-// 最も衝突の可能性の高い車のid(index)を返す
-inline void FindMostDangerCar(in uint id1, in uint id2, inout float timeMin, inout uint idMin)
+// (64, 1, 1)のスレッドで回す
+[numthreads(64,1,1)]
+void Init (uint3 id : SV_DispatchThreadID)
 {
-  if(timeMin <= 0) return; // 時すでに遅し
+  CarD carD = CarsDynamic[id.x];
+  carD.colider = id.x;
+  carD.ticks = 100000;
+
+  CarsDynamic[id.x] = carD;
+}
+
+// (8, 8, 1)のスレッドで回す
+// 最も衝突の可能性の高い車のid(index)を返す
+[numthreads(8,8,1)]
+void Scan (uint3 id : SV_DispatchThreadID)
+{
+  uint id1 = id.x;
+  uint id2 = id.y;
+  
+  if(id1 == id2) return;
+
+  CarS carS1 = CarsStatic[id1];
+  CarS carS2 = CarsStatic[id2];
+  if(carS1.size.z == 0 || carS2.size.z == 0) return; // 削除済みのデータ＝末端に到達
 
   CarD carD1 = CarsDynamic[id1];
   CarD carD2 = CarsDynamic[id2];
+  if(carD1.ticks <= 0) return; // 時すでに遅し
+
   // 別車線は無視
   if (carD1.lane != carD2.lane)
   {
@@ -64,7 +89,6 @@ inline void FindMostDangerCar(in uint id1, in uint id2, inout float timeMin, ino
 
   // 相対位置ベクトル
   float2 diffPos = carD2.pos - carD1.pos;
-
 
   // 背後から接近してくるものは回避しない（相手任せ）
   if (dot2d(carD1.dir, diffPos) <= 0) return;
@@ -83,40 +107,32 @@ inline void FindMostDangerCar(in uint id1, in uint id2, inout float timeMin, ino
 
   // 二つの車のサイズを考慮した距離を求める
   // 同一車線なので基本的に両車の長さの半分を足したもの
-  CarS carS1 = CarsStatic[id1];
-  CarS carS2 = CarsStatic[id2];
   float distance = (carS1.size.z + carS2.size.z) * 0.5; 
   // どちらかが高速で移動しているなら停止距離には余裕を持つ
   distance += max(carD1.velocity, carD2.velocity) * 0.28f;
 
   float t = max(0, (absPos - distance) / diffVel);
   // このままだと近い将来衝突しそう
-  if(t > timeMin){
+  if(t > carD1.ticks){
     return; // もっと近い相手が既にいる
   }
 
   // 最小値更新
-  timeMin = t;
-  idMin = id2;
+  carD1.ticks = t;
+  carD1.colider = id2;
+
+  CarsDynamic[id.x] = carD1;
 }
 
 // (64, 1, 1)のスレッドで回す
 [numthreads(64,1,1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
+void Drive (uint3 id : SV_DispatchThreadID)
 {
-  uint idMin = id.x;
-  int timeMin = 1000; // このままだとあと何回で衝突するか
-  
-  for(uint i = 0; i < count; i++) {
-    if(i == id.x) continue;
-    if(CarsStatic[i].size.z == 0) break; // 削除済みのデータ＝末端に到達
-    FindMostDangerCar(id.x, i, timeMin, idMin);
-  }
   
   CarD carD = CarsDynamic[id.x];
 	CarS carS = CarsStatic[id.x];
 
-  if(idMin == id.x) { // 衝突の可能性の高い車はない
+  if(carD.colider == id.x) { // 衝突の可能性の高い車はない
     if(carD.velocity < carS.idealVelocity) {
       carD.velocity = min(carD.velocity + carS.mobility, carS.idealVelocity);
     }
@@ -124,7 +140,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
   else {
     if(carD.velocity > 0) {
       carD.velocity = max(0,  carD.velocity - carS.mobility * 2.0);
-      if( length(CarsDynamic[idMin].pos - carD.pos) < 5 ){
+      if( length(CarsDynamic[carD.colider].pos - carD.pos) < 5 ){
         carD.velocity = 0;
       }
     }
