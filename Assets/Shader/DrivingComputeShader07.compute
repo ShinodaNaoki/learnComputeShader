@@ -1,0 +1,160 @@
+﻿#pragma kernel Init
+#pragma kernel Scan
+#pragma kernel Drive
+
+const float MAX_FORCAST_COUNT = 100000.0;
+
+// 車の総数
+uint count;
+
+// 車の静的情報
+struct CarS
+{
+	float3 size;
+	float4 col;
+  float idealVelocity;
+  float mobility;
+};
+
+// 車の動的情報
+struct CarD
+{
+	float2 pos;
+	float2 dir;
+	float velocity;
+  int lane;
+  int colider; 
+  float ticks;
+};
+
+// 前回の更新からの経過時間
+float DeltaTime;
+
+// 車の構造化バッファ
+StructuredBuffer<CarS> CarsStatic;
+RWStructuredBuffer<CarD> CarsDynamic;
+
+// 2Dベクトル外積
+inline float cross2d(float2 a, float2 b)
+{
+  return a.x * b.y - a.y * b.x;
+}
+
+// 2Dベクトル内積
+inline float dot2d(float2 a, float2 b)
+{
+  return a.x * b.x + a.y * b.y;
+}
+
+// 2Dベクトル回転
+inline float2 rotate2d(in float2 v2d, in float2x2 mat)
+{
+  return mul(v2d, mat);
+}
+
+// (64, 1, 1)のスレッドで回す
+[numthreads(64,1,1)]
+void Init (uint3 id : SV_DispatchThreadID)
+{
+  CarD carD = CarsDynamic[id.x];
+  carD.colider = id.x;
+  carD.ticks = 100000;
+
+  CarsDynamic[id.x] = carD;
+}
+
+// (8, 8, 1)のスレッドで回す
+// 最も衝突の可能性の高い車のid(index)を返す
+[numthreads(8,8,1)]
+void Scan (uint3 id : SV_DispatchThreadID)
+{
+  int id1 = id.x;
+  int id2 = id.y;
+  
+  // condition == 0 なら衝突予想更新しない
+  float condition = abs(id1 - id2);
+
+  CarS carS1 = CarsStatic[id1];
+  CarS carS2 = CarsStatic[id2];
+  
+  // 削除済みのデータ＝末端に到達
+  condition *= carS1.size.z;
+  condition *= carS2.size.z;
+
+  CarD carD1 = CarsDynamic[id1];
+  CarD carD2 = CarsDynamic[id2];
+
+  // 時すでに遅し
+  condition *= clamp(carD1.ticks, 0, 1);
+
+  // 別車線は無視
+  condition *= 1 - clamp(abs(carD1.lane - carD2.lane), 0, 1);
+
+  // 相対位置ベクトル
+  float2 diffPos = carD2.pos - carD1.pos;
+
+  // 背後から接近してくるものは回避しない（相手任せ）
+  condition *= clamp(dot2d(carD1.dir, diffPos), 0, 1);
+
+  // 相対速度ベクトル
+  float diffVel = (carD1.velocity - carD2.velocity) * 0.28;
+  // 接近していない
+  condition *= step(0.00001, diffVel);
+
+  float absPos = length(diffPos);
+  float countAssume = absPos / diffVel;
+  // 遠い未来過ぎるので無視
+  condition *= step(countAssume, 100000);
+
+  // 二つの車のサイズを考慮した距離を求める
+  // 同一車線なので基本的に両車の長さの半分を足したもの
+  float distance = (carS1.size.z + carS2.size.z) * 0.5; 
+  // どちらかが高速で移動しているなら停止距離には余裕を持つ
+  distance += max(carD1.velocity, carD2.velocity) * 0.28f;
+
+  float t = max(0, (absPos - distance) / diffVel);
+  // このままだと近い将来衝突しそう
+  
+  // もっと近い相手が既にいる
+  condition *= step(t, carD1.ticks);
+  
+  // 0/1補正
+  condition = 1 - step(condition, 0);
+
+
+  // なぜか carD1.colider = carD1.colider でも変更したことになるのでリターンするしかない
+  if(condition == 0) return;
+  
+  // 最小値更新
+  carD1.ticks = t;
+  carD1.colider = id2;  
+
+  CarsDynamic[id.x] = carD1;
+}
+
+// (64, 1, 1)のスレッドで回す
+[numthreads(64,1,1)]
+void Drive (uint3 id : SV_DispatchThreadID)
+{
+  
+  CarD carD = CarsDynamic[id.x];
+	CarS carS = CarsStatic[id.x];
+
+  if(carD.colider == (int)id.x) { // 衝突の可能性の高い車はない
+    if(carD.velocity < carS.idealVelocity) {
+      carD.velocity = min(carD.velocity + carS.mobility, carS.idealVelocity);
+    }
+  }
+  else {
+    if(carD.velocity > 0) {
+      carD.velocity = max(0,  carD.velocity - carS.mobility * 2.0);
+      if( length(CarsDynamic[carD.colider].pos - carD.pos) < 5 ){
+        carD.velocity = 0;
+      }
+    }
+  }
+
+  // それぞれの位置情報に移動ベクトルを加算　(0.28はkm/hをm/sに変換する係数)
+  carD.pos += carD.dir * carD.velocity * DeltaTime * 0.28;
+  CarsDynamic[id.x] = carD;
+}
